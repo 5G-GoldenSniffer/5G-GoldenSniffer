@@ -163,11 +163,11 @@ The breakthrough of Golden Sniffer lies in exploiting the **deterministic proper
 
 #### DMRS Scrambling Initialization
 ```
-c_init = (2^17 · (N_symb · n_slot + l + 1) · (2 · N_ID^SCID + 1) + 2 · N_ID^SCID + n_SCID) mod 2^31
+c_init = (2^17 · (N_symb · n_slot + l + 1) · (2 · N_ID + 1) + 2 · N_ID) mod 2^31
 ```
 
 For PDCCH DMRS:
-- **n_RNTI** (16 bits): The RNTI occupies the upper 16 bits of c_init
+- **N_ID** (16 bits): The scrambling ID occupies the lowest 17 bits (with the last one set to 0) of c_init
 - This creates a deterministic phase relationship observable in DMRS symbols
 
 #### Phase Unwrapping Technique
