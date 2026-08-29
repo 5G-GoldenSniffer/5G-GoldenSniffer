@@ -44,7 +44,7 @@
 %   IN THE SOFTWARE.
 %
 function [PBCH_in_frame,skip_for_sync,Cfo_est] = PSS_timing_offset_est(Y,k120,PSS_ind,...
-		symSSB_ofs,H_est_PSS0,PSS_freq,SSS_freq,ncellid,PSS_corr_thres,fs,FIGURES)
+		symSSB_ofs,H_est_PSS0,PSS_freq,SSS_freq,ncellid,PSS_corr_thres,fs,SCS,FIGURES)
 	N_FFT = size(Y,1);
 	NID2 = mod(ncellid,3);
 	NID1 = (ncellid - NID2)/3;
@@ -61,7 +61,7 @@ function [PBCH_in_frame,skip_for_sync,Cfo_est] = PSS_timing_offset_est(Y,k120,PS
 		exp_iphi_epst = H_est_PSS./H_est_PSS0;
 		tmp = fftshift(ifft(exp_iphi_epst,512))*512/127;
 		[~,pos]=max_parab(abs(tmp));pos=(pos-1-512/2)/(512/127);
-		Ts_tmp = 1/(fs/(127*15e3));
+		Ts_tmp = 1/(fs/(127*SCS));
 		skip_for_sync = round(pos/Ts_tmp);
 		if bitand(FIGURES,0x0004)
 			currentfigure(3)

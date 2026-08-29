@@ -548,7 +548,7 @@ function GoldenSniffer(config)
 				% skip_for_sync is used at loop start to skip forward/backward in file
 				step1_start = toc;
 				[PBCH_in_frame,skip_for_sync,Cfo_eD] = PSS_timing_offset_est(Y,k120,...
-					PSS_ind,symSSB_ofs,H_est_PSS,PSS_freq,SSS_freq,ncellid,PSS_corr_thres,fs,FIGURES);
+					PSS_ind,symSSB_ofs,H_est_PSS,PSS_freq,SSS_freq,ncellid,PSS_corr_thres,fs,SCS,FIGURES);
 				step1_time = step1_time + toc - step1_start;
 				
 				if PBCH_in_frame
