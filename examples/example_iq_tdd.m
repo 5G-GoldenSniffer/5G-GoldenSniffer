@@ -48,7 +48,7 @@ function example_iq_tdd(id)
 	config.CSI0.sc_spacing=12;
 	config.CSI0.SFN=0;
 	config.CSI0.SFN_period=2;
-	config.CSI0.k0=4*(ncellid==300); % RFC
+	config.CSI0.k0=4*(ncellid==300 || ncellid==1); % RFC
 	config.CSI0.bitmap=zeros(1,280);
 	config.CSI0.bitmap(1+64)=1;
 
