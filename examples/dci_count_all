@@ -1,0 +1,26 @@
+#/bin/bash
+./dci_count.py -l ../captures/gnb_conf1.log --sfnini 100 --sfnfin 74 -r rnti=0x4602
+./dci_count.py -l ../captures/gnb_conf2.log --sfnini 308 --sfnfin 282 -r rnti=0x4602
+./dci_count.py -l ../captures/gnb_conf3.log --sfnini 934 --sfnfin 907 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf4.log --sfnini 606 --sfnfin 579 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf5.log --sfnini 1008 --sfnfin 981 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf6.log --sfnini 288 --sfnfin 262 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf7.log --sfnini 158 --sfnfin 132 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf8.log --sfnini 180 --sfnfin 154 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf9.log --sfnini 1014 --sfnfin 988 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf10.log --sfnini 74 --sfnfin 47 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf11.log --sfnini 482 --sfnfin 456 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf12.log --sfnini 110 --sfnfin 83 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf13.log --sfnini 802 --sfnfin 775 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf14.log --sfnini 496 --sfnfin 470 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf15.log --sfnini 0 --sfnfin 998 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf16_0.log --sfnini 336 --sfnfin 310 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf17.log --sfnini 778 --sfnfin 752 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf18.log --sfnini 456 --sfnfin 430 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf19.log --sfnini 818 --sfnfin 792 -r rnti=0x4601
+./dci_count.py -l ../captures/gnb_conf20.log --sfnini 846 --sfnfin 819 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf21.log --sfnini 942 --sfnfin 916 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf22.log --sfnini 36 --sfnfin 9 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf23.log --sfnini 952 --sfnfin 926 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf24.log --sfnini 442 --sfnfin 416 -r rnti=0x460[12]
+./dci_count.py -l ../captures/gnb_conf25.log --sfnini 876 --sfnfin 850 -r rnti=0x460[12]
