@@ -46,12 +46,12 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 			s_tmp=s_tmp+s_tmp_decim;
 		end
 		phi_SSB(i) = phi_SSB(i) - 2*pi*f_SSB*ns*Ts;
+		[tmp_norm,hPSS_norm_state(i,:)] = filter(ones(NhPSS,1),1,...
+			abs(s_tmp).^2,hPSS_norm_state(i,:));
+		tmp_norm = 1./sqrt(tmp_norm);
 		for j = 1:3
 			[tmp,hPSS_state((i-1)*3+j,:)] = filter(hPSS(:,j),1,...
 				s_tmp,hPSS_state((i-1)*3+j,:));
-			[tmp_norm,hPSS_norm_state(i,:)] = filter(ones(NhPSS,1),1,...
-				abs(s_tmp).^2,hPSS_norm_state(i,:));
-			tmp_norm = 1./sqrt(tmp_norm);
 			if bitand(FIGURES,0x0001)
 				GSCN_corr_log(3*(i-1)+j,:) = abs(tmp.*tmp_norm);
 			end
