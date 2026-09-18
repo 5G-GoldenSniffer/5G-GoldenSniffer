@@ -1,5 +1,5 @@
 %WHOLE_FRAME_FFT Perform OFDM demodulation for entire frame
-%   [Y,CP_corr] = WHOLE_FRAME_FFT(S, N_FFT, NSYMB_FRAME, MU, PHASE_COMP) performs
+%   Y = WHOLE_FRAME_FFT(S, N_FFT, NSYMB_FRAME, MU, PHASE_COMP) performs
 %   OFDM demodulation on all symbols in a 10ms frame.
 %
 %   Inputs:
@@ -41,7 +41,6 @@
 %   IN THE SOFTWARE.
 %
 function Y = whole_frame_fft(s,N_FFT,Nsymb_frame,mu,phase_comp,TDD_pattern,TA)
-	ns = numel(s);
 	N_CP = 9/128*N_FFT;
 	N_CP_07 = (9+2^mu)/128*N_FFT;
 	CP_slack = N_FFT/128;
@@ -54,7 +53,6 @@ function Y = whole_frame_fft(s,N_FFT,Nsymb_frame,mu,phase_comp,TDD_pattern,TA)
 	l = 0;
 	i = 0;
 	Y = zeros(N_FFT,Nsymb_frame);
-	CP_corr = zeros(1,Nsymb_frame);
 	while i < Nsymb_frame
 		if TDD_pattern(1+mod(floor(i/14),10))==1
 			ofs2 = -TA;
@@ -68,11 +66,11 @@ function Y = whole_frame_fft(s,N_FFT,Nsymb_frame,mu,phase_comp,TDD_pattern,TA)
 			end
 		end
 		if mod(l,7*2^mu) == 0
-			[Y(:,1+i),CP_corr(1+i)] = ofdm_fft(s,ofs+ofs2+N_CP_07-N_CP,CP_slack,N_CP,N_FFT,0);
+			Y(:,1+i) = ofdm_fft(s,ofs+ofs2+N_CP_07-N_CP,CP_slack,N_CP,N_FFT,0);
 			Y(:,1+i) = Y(:,1+i)*exp(1i*phase_comp(1+l));
 			ofs = ofs + N_FFT + N_CP_07;
 		else
-			[Y(:,1+i),CP_corr(1+i)] = ofdm_fft(s,ofs+ofs2,CP_slack,N_CP,N_FFT,0);
+			Y(:,1+i) = ofdm_fft(s,ofs+ofs2,CP_slack,N_CP,N_FFT,0);
 			Y(:,1+i) = Y(:,1+i)*exp(1i*phase_comp(1+l));
 			ofs = ofs + N_FFT + N_CP;
 		end

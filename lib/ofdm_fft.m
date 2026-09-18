@@ -50,7 +50,7 @@ function [Y,cp_corr]=ofdm_fft(s,ofs,CP_slack,N_CP,N_FFT,cfo_comp)
 	s1 = s(ofs+      (CP_slack+1:N_CP-CP_slack));
 	s2 = s(ofs+N_FFT+(CP_slack+1:N_CP-CP_slack));
 	cp_corr = s2*s1'/(norm(s1)*norm(s2));
-	if cfo_comp
+	if cfo_comp || nargout == 2
 		dphi_est = angle(cp_corr)/N_FFT;
 		Y = fftshift(fft(s(ofs+N_CP-CP_slack+(1:N_FFT)) ...
 			.*exp(-1i*dphi_est*(-CP_slack:N_FFT-CP_slack-1))))...
