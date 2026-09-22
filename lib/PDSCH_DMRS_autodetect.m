@@ -68,7 +68,7 @@ function [N_ID__nSCID,nSCID,DMRS_addPos] = PDSCH_DMRS_autodetect(rxSlotGrid,BWPs
 				break % found a working set
 			end
 		end
-	else
+	elseif L_RB == 2
 		[found,N_ID__nSCID,nSCID] = PDSCH_DMRS_solve_underdet(rxSlotGrid((BWPstart+RBstart)*Nsc_RB+(1:2:L_RB*Nsc_RB),1+l_dmrs_set),2^17*(slot*Nsymb_slot+l_dmrs_set+1),RBstart);
 		% keyboard
 	end
