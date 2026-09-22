@@ -39,7 +39,7 @@
 %   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 %   IN THE SOFTWARE.
 %
-function GSCN = GSCN_freqs_MHz(f0_MHz,fs_MHz,BW_MHz,SCS_MHz)
+function GSCN = GSCN_freqs_MHz(f0_MHz,BW_MHz,SCS_MHz)
 	% 38.104 5.4.3
 	if BW_MHz == 3
 		%%%keyboard
@@ -49,6 +49,7 @@ function GSCN = GSCN_freqs_MHz(f0_MHz,fs_MHz,BW_MHz,SCS_MHz)
 		% Band n100
 		% #GSCN=41637 920.73MHz
 		% #GSCN=41638 921.45MHz
+		error('GSCN_freqs_MHz:notImplemented','the BW_MHz==3 GSCN raster is not implemented');
 	else % BW>3MHz
 		if f0_MHz < 3000
 			% #GSCN = 3*N+(M-3)/2
@@ -58,6 +59,10 @@ function GSCN = GSCN_freqs_MHz(f0_MHz,fs_MHz,BW_MHz,SCS_MHz)
 			N_min = ceil((f0_MHz-BW_MHz/2 + 120*SCS_MHz - 0.05)/1.2);
 			% N_max*1.2+0.25 + 119*SCS_MHz <= f0_MHz+BW_MHz/2
 			N_max = floor((f0_MHz+BW_MHz/2 - 119*SCS_MHz - 0.25)/1.2);
+			if N_max < N_min
+				error('GSCN_freqs_MHz:noCandidate',...
+					'no GSCN entry fits f0=%gMHz with BW=%gMHz',f0_MHz,BW_MHz);
+			end
 			for M = [1 3 5]
 				GSCN = (N_min:N_max)*1.2 + M*0.05;
 				if abs(mod((GSCN(1)-f0_MHz)/SCS_MHz+0.5,1)-0.5)<0.05
@@ -73,11 +78,17 @@ function GSCN = GSCN_freqs_MHz(f0_MHz,fs_MHz,BW_MHz,SCS_MHz)
 			N_min = ceil((f0_MHz-BW_MHz/2 - 3000 + 120*SCS_MHz)/1.44);
 			% 3000+N_max*1.44 + 119*SCS_MHz <= f0_MHz+BW_MHz/2
 			N_max = floor((f0_MHz+BW_MHz/2 - 3000 - 119*SCS_MHz)/1.44);
+			if N_max < N_min
+				error('GSCN_freqs_MHz:noCandidate',...
+					'no GSCN entry fits f0=%gMHz with BW=%gMHz',f0_MHz,BW_MHz);
+			end
 			GSCN = 3000+(N_min:N_max)*1.44;
 		else
 			%%%keyboard
 			% #GSCN = 22256+N
 			% 24.25-100GHz: 24.25008GHz + N*17.28MHz, N=22256:26639
+			error('GSCN_freqs_MHz:notImplemented',...
+				'the f0_MHz>=24250 GSCN raster (38.104 5.4.3) is not implemented');
 		end
 	end
 end

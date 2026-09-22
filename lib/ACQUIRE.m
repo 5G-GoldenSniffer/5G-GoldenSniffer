@@ -19,7 +19,7 @@
 %   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 %   IN THE SOFTWARE.
 %
-function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,noise_power_est,SSS_freq,Cfo_eD,Cfo_eF2,...
+function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,noise_power_est,SSS_freq,Cfo_eF2,...
 		phi_SSB,hSSB_state,hPSS_state,hPSS_norm_state]=ACQUIRE(...
 		s,f0_MHz,GSCN_MHz,phi_SSB,fs,SCS,hSSB,hSSB_decim,hSSB_state,SSB_ind,hPSS,hPSS_state,hPSS_norm_state,...
 		PSS_freq,PSS_ind,PSS_corr_thres,CP_slack,cp_corr_thres,phase_comp,FIGURES,VERBOSITY,GSCN_corr_log)
@@ -138,7 +138,6 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 			signal_power_est=-1;
 			noise_power_est=-1;
 			SSS_freq=[];
-			Cfo_eD=nan;
 			Cfo_eF2=nan;
 			return
 		end
@@ -161,7 +160,7 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 			end
 		end
 
-		VERBOSITY>0 && fprintf('  [PSS/SSS] GSCN: %gMHz ',GSCN_freq); %#ok <NASGU>
+		VERBOSITY>0 && fprintf('  [PSS/SSS] GSCN: %gMHz ',GSCN_freq); %#ok<VUNUS>
 
 		NID1 = SSS_ind-1;
 		H_est_SSS = Y_PBCH(1+120+PSS_ind,1+2)...
@@ -181,7 +180,7 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 		% Cfo_eF2 = Cfo_eF2 + Kif*alpha*Cfo_eD;
 		% Cfo_eF = Kpf*alpha*Cfo_eD+Cfo_eF2;
 		VERBOSITY>0 && fprintf('ncellid: %d Cfo: %.1fkHz(CP) %.1fkHz(PSS->SSS)\n',...
-			ncellid,Cfo_est_CP*1e-3,Cfo_est_PBCH*1e-3); %#ok <NASGU>
+			ncellid,Cfo_est_CP*1e-3,Cfo_est_PBCH*1e-3); %#ok<VUNUS>
 		
 		% Initial noise estimate will be calculated after artificial noise injection
 		% to ensure it reflects the true noise conditions
@@ -196,12 +195,17 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 			% c_init_DMRS ==  2^11*(iSSB+1)*(floor(ncellid/4)+1) ...
 			%               + 2^6*(iSSB+1)
 			%               + mod(ncellid,4)
-			iSSB1 = floor(c_init_DMRS/2^11)/(1+floor(ncellid/4))-1;
-			iSSB2 = floor(mod(c_init_DMRS,2^11)/2^6)-1;
-			if iSSB1 == iSSB2
-				iSSB = iSSB1;
-			else
-				is_ok = false;
+			% DMRS_process can return more than one candidate: keep the first forM
+			% which both expressions agreeM
+			is_ok = false;
+			for ic = 1:numel(c_init_DMRS)
+				iSSB1 = floor(c_init_DMRS(ic)/2^11)/(1+floor(ncellid/4))-1;
+				iSSB2 = floor(mod(c_init_DMRS(ic),2^11)/2^6)-1;
+				if iSSB1 == iSSB2
+					iSSB = iSSB1;
+					is_ok = true;
+					break
+				end
 			end
 		end
 		if ~is_ok
@@ -213,7 +217,8 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 				[hest,nest] = nrChannelEstimate(Y_PBCH,refGrid,'AveragingWindow',[0 1]);
 				dmrsEst(ibar_SSB+1) = 10*log10(mean(abs(hest(:).^2)) / nest);
 			end
-			iSSB = find(dmrsEst==max(dmrsEst)) - 1;
+            [~,ibar_SSB_max] = max(dmrsEst);
+            iSSB = ibar_SSB_max - 1;
 			% fprintf(' iSSB(*): %d\n',iSSB);
 		end
 	end
@@ -226,7 +231,6 @@ function [SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,signal_power_est,nois
 		signal_power_est=-1;
 		noise_power_est=-1;
 		SSS_freq=[];
-		Cfo_eD=nan;
 		Cfo_eF2=nan;
 	end
 end

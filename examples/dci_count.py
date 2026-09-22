@@ -142,7 +142,7 @@ def main():
                     rv = fields[15].replace("rv=", "")
                     if awk_to_int(rv) > 0:
                         C[(W, rnti, '1_0')] -= 1
-                        C[(W, rnti, 'UNC')] += 1
+                        C[(W, rnti, 'HARQ RV!=0')] += 1
 
     print_table(C, drop_last_window=(X == 1))
 

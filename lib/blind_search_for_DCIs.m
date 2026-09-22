@@ -51,7 +51,7 @@ function dci = blind_search_for_DCIs(Y,grid_ofs,Nsc,CORESET0_offset,TDD_pattern,
 		% perform power-based detection of REGs in the first symbols
 		% of a slot
 		sym = slot*Nsymb_slot;
-		[duration,~,RE_busy_runs] = ...
+		[duration,RE_busy_runs] = ...
 			power_detect_REGs(Y(grid_ofs+(1:Nsc),sym+(1:max_duration)),CORESET0_offset);
 		Nruns = size(RE_busy_runs,1);
 		if Nruns == 0
@@ -104,7 +104,8 @@ function dci = blind_search_for_DCIs(Y,grid_ofs,Nsc,CORESET0_offset,TDD_pattern,
 
 				% interleaved DCIs have more than one run
 				runs_in_cand = size(cand{icand},1);
-				NID_est_cand = -1*ones(runs_in_cand);
+				NID_est_cand = -ones(runs_in_cand,1);
+				CORESET0_cand = false(runs_in_cand,1);
 
 				% accumulate equalized REs in this buffer
 				nYeq = round(sum((cand{icand}(:,2)-cand{icand}(:,1)+1))*3/4); % (sc_period_DMRS-1)/sc_period_DMRS
@@ -120,14 +121,24 @@ function dci = blind_search_for_DCIs(Y,grid_ofs,Nsc,CORESET0_offset,TDD_pattern,
 						for l = 0:duration-1
 							[is_ok,c_init_DMRS,C_est_DMRS] = DMRS_process(C_ambiguous(2:4:end,1+l),cand{icand}(irc,1)-1,sc_period_DMRS);
 							if is_ok
-								[n_b_found,NID_dciDMRS] = c_init_PDCCH_DMRS_decode(c_init_DMRS,2^17*(Nsymb_slot*slot+l+1));
-								found_in_CORESET0 = false || CORESET0_offset == 0;
+								for ic_init = 1:numel(c_init_DMRS)
+									[n_b_found,NID_dciDMRS] = c_init_PDCCH_DMRS_decode(c_init_DMRS(ic_init),2^17*(Nsymb_slot*slot+l+1));
+									if n_b_found
+										CORESET0_cand(irc) = CORESET0_offset == 0;
+										break
+									end
+								end
 							end
-							if ~is_ok || ~n_b_found
+							if CORESET0_offset > 0 && (~is_ok || ~n_b_found)
 								[is_ok,c_init_DMRS,C_est_DMRS] = DMRS_process(C_ambiguous(2:4:end,1+l),cand{icand}(irc,1)-1-CORESET0_offset,sc_period_DMRS);
 								if is_ok
-									[n_b_found,NID_dciDMRS] = c_init_PDCCH_DMRS_decode(c_init_DMRS,2^17*(Nsymb_slot*slot+l+1));
-									found_in_CORESET0 = true;
+									for ic_init = 1:numel(c_init_DMRS)
+										[n_b_found,NID_dciDMRS] = c_init_PDCCH_DMRS_decode(c_init_DMRS(ic_init),2^17*(Nsymb_slot*slot+l+1));
+										if n_b_found
+											CORESET0_cand(irc) = true;
+											break
+										end
+									end
 								end
 							end
 							if is_ok && n_b_found
@@ -137,7 +148,7 @@ function dci = blind_search_for_DCIs(Y,grid_ofs,Nsc,CORESET0_offset,TDD_pattern,
 						end
 						if is_ok && n_b_found
 							% equalize and detect the DCI
-							Yeq(iYeq+(1:size(Ydci,1)*3/4),:) = PDCCH_equalize(Ydci,C_est_DMRS,l);
+							Yeq(iYeq+(1:size(Ydci,1)*3/4),:) = PDCCH_equalize(Ydci,C_est_DMRS(:,ic_init),l);
 							iYeq = iYeq + size(Ydci,1)*3/4;
 						end
 					elseif (cand{icand}(irc,2)-cand{icand}(irc,1)+1)*duration >= Nsc_CCE
@@ -150,11 +161,11 @@ function dci = blind_search_for_DCIs(Y,grid_ofs,Nsc,CORESET0_offset,TDD_pattern,
 
 						[is_ok,NID_dciDMRS,C_est_DMRS] = PDCCH_DMRS_solve_underdet(C_ambiguous(2:4:end,:),cand{icand}(irc,1)-1,2^17*(Nsymb_slot*slot+1));
 						if is_ok
-							found_in_CORESET0 = false || CORESET0_offset==0;
-						else
+							CORESET0_cand(irc) = CORESET0_offset==0;
+						elseif CORESET0_offset > 0
 							[is_ok,NID_dciDMRS,C_est_DMRS] = PDCCH_DMRS_solve_underdet(C_ambiguous(2:4:end,:),cand{icand}(irc,1)-1-CORESET0_offset,2^17*(Nsymb_slot*slot+1));
 							if is_ok
-								found_in_CORESET0 = true;
+								CORESET0_cand(irc) = true;
 							end
 						end
 						if is_ok
@@ -167,12 +178,13 @@ function dci = blind_search_for_DCIs(Y,grid_ofs,Nsc,CORESET0_offset,TDD_pattern,
 					end
 				end
 				NID_est = unique(NID_est_cand(1:runs_in_cand));
+				found_in_CORESET0 = all(CORESET0_cand);
 				if iYeq == nYeq && isscalar(NID_est)
 					b_tilde = zeros(1,2*numel(Yeq)); % QPSK
 					b_tilde(1:2:end) = real(Yeq)<0;
 					b_tilde(2:2:end) = imag(Yeq)<0;
 					for N_DCI = DCI_sizes(DCI_size_order)
-						[RNTI_found,xr_est,RNTI_CRC] = DCIdecode_try(b_tilde,N_DCI,Grnti,b_tilde0rnti,EArnti,EBrnti,ncellid,NID_est,N_DCI_max_AL);
+						[RNTI_found,xr_est,RNTI_CRC] = DCIdecode_try(b_tilde,N_DCI,Grnti,b_tilde0rnti,EArnti,EBrnti,ncellid,NID_est,N_DCI_max_AL,N_DCI_min);
 						if ~RNTI_found
 							continue
 						end

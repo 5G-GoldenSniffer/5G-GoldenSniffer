@@ -43,79 +43,17 @@ function [hSSB,NhSSB,decim] = SSB_filter(fs,SCS,ns)
 	while mod(ns,decim) ~= 0
 		decim = decim - 1;
 	end
-	if 1 % FIRPM
-		Fpass = 120*SCS;
-		Fstop = Fpass+(80-64)*SCS;
-		Wpass = 1;
-		Wstop = 1;
-		dens  = 100;
-		LP_order = 32;
-		N = LP_order*decim;
-		Fs_filt = fs;
-		b  = firpm(N, [0 Fpass Fstop Fs_filt/2]/(Fs_filt/2), [1 1 0 0], [Wpass Wstop], {dens});
-		Hd = dfilt.dffir(b);
-		set(Hd, 'Arithmetic', 'single');
-		hSSB = Hd.Numerator(1:end-1);
-		NhSSB = numel(hSSB);
-		% rp = 1;           % Passband ripple in dB
-		% rs = 20;          % Stopband ripple in dB
-		% f = [120*SCS 120*SCS+0.055*fs];
-		% a = [1 0];        % Desired amplitudes
-		% dev = [(10^(rp/20)-1)/(10^(rp/20)+1) 10^(-rs/20)];
-		% [n,fo,ao,w] = firpmord(f,a,dev,fs);
-		% hSSB = firpm(n,fo,ao,w);
-		% NhSSB = numel(hSSB);
-	else % RCOS
-		fs_decim = fs/decim;
-		f = [120*SCS fs_decim/2];
-		a = (f(2)-f(1))/(f(2)+f(1));
-		while a < 0.16
-			decim = decim - 1;
-			while mod(ns,decim) ~= 0
-				decim = decim - 1;
-			end
-			fs_decim = fs/decim;
-			f = [120*SCS fs_decim/2];
-			a = (f(2)-f(1))/(f(2)+f(1));
-		end
-		LSSB = 6;
-		hSSB = raised_cosine(a,(-LSSB*decim:LSSB*decim+decim-1)/fs,decim/fs)/decim;
-		NhSSB = (2*LSSB+1)*decim;
-		% hold off
-		% plot((0:4095)*fs/4096,20*log10(abs(fft(hSSB,4096))));
-		% hold on
-		% plot([0 1 1]*SCS*120,[0 0 -40]);
-		% plot([fs/decim,fs/decim,fs]/2,[0 -40 -40])
-		% keyboard
-	end
+	Fpass = 120*SCS;
+	Fstop = Fpass+(80-64)*SCS;
+	Wpass = 1;
+	Wstop = 1;
+	dens  = 100;
+	LP_order = 32;
+	N = LP_order*decim;
+	Fs_filt = fs;
+	b  = firpm(N, [0 Fpass Fstop Fs_filt/2]/(Fs_filt/2), [1 1 0 0], [Wpass Wstop], {dens});
+	Hd = dfilt.dffir(b);
+	set(Hd, 'Arithmetic', 'single');
+	hSSB = Hd.Numerator(1:end-1);
+	NhSSB = numel(hSSB);
 end
-% function [h, N, decim] = SSB_filter(fs, SCS, ns)
-%     % SSB spans 240 subcarriers = 240 * SCS Hz
-%     SSB_BW = 240 * SCS;
-% 
-%     % Decimation factor for efficient processing
-%     decim = max(1, floor(fs / (4 * SSB_BW)));
-% 
-%     % Filter design parameters
-%     Fpass = SSB_BW / 2;           % Passband frequency
-%     Fstop = SSB_BW;               % Stopband frequency
-%     Apass = 0.5;                  % Passband ripple (dB)
-%     Astop = 40;                   % Stopband attenuation (dB)
-% 
-%     % Design lowpass filter
-%     d = designfilt('lowpassfir', ...
-%         'PassbandFrequency', Fpass, ...
-%         'StopbandFrequency', Fstop, ...
-%         'PassbandRipple', Apass, ...
-%         'StopbandAttenuation', Astop, ...
-%         'SampleRate', fs);
-% 
-%     h = d.Coefficients;
-%     N = length(h);
-% 
-%     % Adjust filter length to be compatible with decimation
-%     if mod(N, decim) ~= 0
-%         N = ceil(N / decim) * decim;
-%         h = [h, zeros(1, N - length(h))];
-%     end
-% end

@@ -21,14 +21,14 @@
 %   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 %   IN THE SOFTWARE.
 %
-function csi = csi_update(Y,N_RB,SFN,csi,FIGURES)
+function csi = csi_update(Y,N_RB,SFN,csi)
 
 	Nsymb_frame = size(Y,2);
 	if csi.SFN_period < 0
 		for l = 1:Nsymb_frame
 			if csi.k0 < 0
 				for k0 = 0:csi.sc_spacing-1
-					[is_ok,c_init_CSI,nID_tmp] = csi_check(Y,l,k0,csi.sc_spacing,N_RB);
+					[is_ok,~,nID_tmp] = csi_check(Y,l,k0,csi.sc_spacing,N_RB);
 					if is_ok
 						csi.nID = nID_tmp;
 						% fprintf('  [CSI] symbol=%d nID=%d k0=%d\n',l-1,nID_tmp,k0);
@@ -46,7 +46,7 @@ function csi = csi_update(Y,N_RB,SFN,csi,FIGURES)
 					end
 				end
 			else
-				[is_ok,c_init_CSI,nID_tmp] = csi_check(Y,l,csi.k0,csi.sc_spacing,N_RB);
+				[is_ok,~,nID_tmp] = csi_check(Y,l,csi.k0,csi.sc_spacing,N_RB);
 				if is_ok
 					csi.nID = nID_tmp;
 					% fprintf('  [CSI] symbol=%d nID=%d',l-1,csi_nID_tmp);
@@ -68,7 +68,7 @@ function csi = csi_update(Y,N_RB,SFN,csi,FIGURES)
 		end
 	elseif mod(SFN,csi.SFN_period) == csi.SFN
 		for l = find(csi.bitmap)
-			[is_ok,c_init_CSI,nID_tmp] = csi_check(Y,l,csi.k0,csi.sc_spacing,N_RB);
+			[is_ok,~,nID_tmp] = csi_check(Y,l,csi.k0,csi.sc_spacing,N_RB);
 			if is_ok
 				% fprintf('  [CSI] symbol=%d nID=%d\n',l-1,nID_tmp);
 				csi.nID = nID_tmp;

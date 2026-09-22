@@ -46,6 +46,7 @@ function [FDA_BWP_hyp,nHyp] = find_FDA_BWP_hypotheses(Yslot,RB_busy_thres,BWP_in
 		% if it is an empty slot but a DL DCI,
 		% it's probably a delayed allocation
 		FDA_BWP_hyp = [];
+		nHyp = 0;
 		return
 	end
 
@@ -65,7 +66,7 @@ function [FDA_BWP_hyp,nHyp] = find_FDA_BWP_hypotheses(Yslot,RB_busy_thres,BWP_in
 	for i = 1:list_size
 		RBstart_try = RBst_list(ind(i));
 		L_RB_try = L_RB_list(ind(i));
-		if L_RB_try > RB_contiguous_max
+		if L_RB_try > RB_contiguous_max || L_RB_try == 0
 			continue % next BWPsize
 		end
 		BWPsize_try = BWP_int(1)+ind(i)-1;
@@ -76,8 +77,8 @@ function [FDA_BWP_hyp,nHyp] = find_FDA_BWP_hypotheses(Yslot,RB_busy_thres,BWP_in
 			BWPstart_try = tmp(tmp_i)-RBstart_try;
 			if BWPstart_try<0 ...
 					|| RBst_dci < BWPstart_try ...
-					|| RBst_dci+L_RB_dci > BWPstart_try + BWPsize_try ...
 					|| BWPstart_try+BWPsize_try > N_RB
+					% || RBst_dci+L_RB_dci > BWPstart_try + BWPsize_try ...
 				continue
 			end
 			tmp_ambiguous = 0;
@@ -88,14 +89,8 @@ function [FDA_BWP_hyp,nHyp] = find_FDA_BWP_hypotheses(Yslot,RB_busy_thres,BWP_in
 					tmp_ambiguous = 1;
 				end
 			end
-			if tmp_ambiguous == 0
-				nHyp = nHyp + 1;
-				% RBstart_try = RBst_list(ind(i));
-				% BWPstart_try = tmp(tmp_i)-RBst_list(ind(i));
-				% BWPsize_try = FDA_BWP_int(1+fdaNbits,1)+ind(i)-1;
-				FDA_BWP_hyp(nHyp,:) = [L_RB_try,RBstart_try,BWPsize_try,BWPstart_try,0];
-				% fprintf('FDA:%d@%d BWP:%d@%d\n',L_RB_try,RBst_list(ind(i)),BWPsize,BWPstart);
-			end
+			nHyp = nHyp + 1;
+			FDA_BWP_hyp(nHyp,:) = [L_RB_try,RBstart_try,BWPsize_try,BWPstart_try,tmp_ambiguous];
 		end
 	end
 end

@@ -1,9 +1,16 @@
-function example_iq_tdd(id)
+function example_iq_tdd(id,run)
 	if nargin < 1
 		id = 11;
 	end
 	if id<11 || id>18 && id~=23
 		fprintf('supported ids: 11-18, 23\n');
+		return
+	end
+	if nargin < 2
+		run = 0;
+	end
+	if run < 0 || run > 2
+		fprintf('supported runs: 0-2\n');
 		return
 	end
 
@@ -55,13 +62,8 @@ function example_iq_tdd(id)
 	config.TA = 360;
 	config.TDD_pattern = [0 0 0 0 0 0 1 1 1 1];
 	config.PDSCH_decoding = true;
-	config.filename = ['iq_3820.02M_23.04M_conf',num2str(id),'_0.sc16'];
-	switch id
-		case {11,12,13,14}
-			config.KNOWN_UE_RNTIs = 0x4601;
-		case {15,16,17,18,23}
-			config.KNOWN_UE_RNTIs = [0x4601 0x4602];
-	end
+	config.filename = ['iq_3820.02M_23.04M_conf',num2str(id),'_',num2str(run),'.sc16'];
+	config.KNOWN_UE_RNTIs = [];
 	
 	GoldenSniffer(config);
 end

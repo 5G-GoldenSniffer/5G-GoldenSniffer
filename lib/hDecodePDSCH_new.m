@@ -58,6 +58,7 @@ function [bits,crc,CSI0] = hDecodePDSCH_new(carrier,pdsch,rxSlotGrid,code_rate,r
 	pdsch.ReservedRE = ReservedRE;
 
 	tries = 1 + (CSI0.SFN_period < 0);
+	bits = [];
 	while tries > 0
 		% channel estimation and soft-output equalization
 		pdschDmrsIndices = nrPDSCHDMRSIndices(carrier,pdsch);

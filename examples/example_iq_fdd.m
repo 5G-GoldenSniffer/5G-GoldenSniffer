@@ -1,9 +1,16 @@
-function example_iq_fdd(id)
+function example_iq_fdd(id,run)
 	if nargin < 1
 		id = 1;
 	end
 	if id<1 || (id>10 && id<19) || id ==23 || id > 25
 		fprintf('supported ids: 1-10,19-22,24,25\n');
+		return
+	end
+	if nargin < 2
+		run = 0;
+	end
+	if run < 0 || run > 2
+		fprintf('supported runs: 0-2\n');
 		return
 	end
 
@@ -60,15 +67,8 @@ function example_iq_fdd(id)
 
 	config.PDSCH_decoding = true;
 
-	config.filename = ['iq_1980M_23.04M_conf',num2str(id),'_0.sc16'];
-	switch id
-		case {1,2}
-			config.KNOWN_UE_RNTIs = 0x4602;
-		case {3,4,5,6,7,8,9,10,19}
-			config.KNOWN_UE_RNTIs = 0x4601;
-		case {20,21,22,24,25}
-			config.KNOWN_UE_RNTIs = [0x4601 0x4602];
-	end
+	config.filename = ['iq_1980M_23.04M_conf',num2str(id),'_',num2str(run),'.sc16'];
+	config.KNOWN_UE_RNTIs = [];
 
 	GoldenSniffer(config);
 end

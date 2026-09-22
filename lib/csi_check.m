@@ -29,9 +29,14 @@ function [is_ok,c_init_CSI,nID] = csi_check(Y,l,k0,csi_sc_spacing,N_RB)
 	[is_ok,c_init_CSI] = DMRS_process(C_csi,k0,csi_sc_spacing);
 	if is_ok
 		% c_init_CSI = mod(2^10*(Nsymb_slot*nsfmu+l+1)*(2*nID+1)+nID,2^31);
-		nID = mod(c_init_CSI,2^10);
-		if c_init_CSI ~= mod(2^10*l*(2*nID+1)+nID,2^31)
-			is_ok = false;
+		is_ok = false;
+		for ic = 1:numel(c_init_CSI)
+			nID = mod(c_init_CSI(ic),2^10);
+			if c_init_CSI(ic) == mod(2^10*l*(2*nID+1)+nID,2^31)
+				c_init_CSI = c_init_CSI(ic);
+				is_ok = true;
+				break
+			end
 		end
 	end
 	if ~is_ok

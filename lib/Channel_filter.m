@@ -37,52 +37,13 @@
 %   IN THE SOFTWARE.
 %
 function [hChannel,NhChannel] = Channel_filter(fs,BW_MHz)
-	if 1 % FIRPM
-		rp = 0.1;           % Passband ripple in dB
-		rs = 30;          % Stopband ripple in dB
-		BW = BW_MHz*1e6;
-		f = [BW/2 BW/2+450e3];  % Cutoff frequencies
-		a = [1 0];        % Desired amplitudes
-		dev = [(10^(rp/20)-1)/(10^(rp/20)+1) 10^(-rs/20)];
-		[n,fo,ao,w] = firpmord(f,a,dev,fs);
-		hChannel = firpm(n,fo,ao,w);
-	else
-		a = 0.18;
-		f = [(1-a/2)*BW_MHz/2 (1+a/2)*BW_MHz/2+450e3];
-		a = (f(2)-f(1))/(f(2)+f(1));
-		LChannel = 31;
-		hChannel = raised_cosine(a,(-LChannel:LChannel)/fs,1/fs);
-	end
+	rp = 0.1;           % Passband ripple in dB
+	rs = 30;          % Stopband ripple in dB
+	BW = BW_MHz*1e6;
+	f = [BW/2 BW/2+450e3];  % Cutoff frequencies
+	a = [1 0];        % Desired amplitudes
+	dev = [(10^(rp/20)-1)/(10^(rp/20)+1) 10^(-rs/20)];
+	[n,fo,ao,w] = firpmord(f,a,dev,fs);
+	hChannel = firpm(n,fo,ao,w);
 	NhChannel = numel(hChannel);
 end
-% 
-% 
-% function [h, N] = Channel_filter(fs, BW_MHz)
-%     % Channel bandwidth in Hz
-%     BW_Hz = BW_MHz * 1e6;
-% 
-%     % Filter design parameters
-%     % Use 90% of bandwidth as passband to account for guard bands
-%     Fpass = 0.45 * BW_Hz;         % Passband frequency
-%     Fstop = 0.55 * BW_Hz;         % Stopband frequency
-%     Apass = 0.5;                  % Passband ripple (dB)
-%     Astop = 60;                   % Stopband attenuation (dB)
-% 
-%     % Ensure filter frequencies are within Nyquist limit
-%     Fnyq = fs / 2;
-%     if Fstop >= Fnyq
-%         Fpass = 0.4 * Fnyq;
-%         Fstop = 0.45 * Fnyq;
-%     end
-% 
-%     % Design lowpass filter
-%     d = designfilt('lowpassfir', ...
-%         'PassbandFrequency', Fpass, ...
-%         'StopbandFrequency', Fstop, ...
-%         'PassbandRipple', Apass, ...
-%         'StopbandAttenuation', Astop, ...
-%         'SampleRate', fs);
-% 
-%     h = d.Coefficients;
-%     N = length(h);
-% end

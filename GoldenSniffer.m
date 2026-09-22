@@ -173,7 +173,6 @@ function GoldenSniffer(config)
 	dir = config.dir;
 	filename = config.filename;
 	cap = filename;
-	nskip = 0;
 
 	fprintf('File:  %s\n', filename);
 	if contains(filename,'.fc32')
@@ -245,6 +244,8 @@ function GoldenSniffer(config)
 	Nslot_frame = Nsubframe_frame*2^mu;
 	Nsymb_frame = Nsymb_slot*Nslot_frame;
 
+	nskip = 0*fs*Tf;
+
 	if bitand(FIGURES,0x0840)
 		Ymax = 0;
 	end
@@ -265,10 +266,7 @@ function GoldenSniffer(config)
 	% number of resource blocks in the grid
 	N_RB = N_RB_tab(1+mu,BW_MHz==BW_MHz_tab);
 	Nsc = Nsc_RB*N_RB;
-	[FDA_BWP_int,nFDA_max] = FDA_BWP_int_calc(N_RB);
-	Nmax_DCI_Fallback1_0 = 28 + nFDA_max;
-	% Nmax_DCI_Fallback0_0 = 20 + nFDA_max;
-
+	
 	ns = Tf*fs;
 	ts = (0:ns-1)*Ts;
 
@@ -277,7 +275,7 @@ function GoldenSniffer(config)
 	% have a fairly accurate idea of the Cfo
 	state = 'ACQUIRE';
 
-	GSCN_MHz = GSCN_freqs_MHz(f0_MHz,fs/1e6,BW_MHz,SCS/1e6);
+	GSCN_MHz = GSCN_freqs_MHz(f0_MHz,BW_MHz,SCS/1e6);
 	N_GSCN_MHz = numel(GSCN_MHz);
 
 	[hSSB,NhSSB,hSSB_decim] = SSB_filter(fs,SCS,ns);
@@ -358,8 +356,7 @@ function GoldenSniffer(config)
 
 	if bitand(FIGURES,0x0010)
 		% Log frequency and timing error over 100 frames
-		Cfo_log = zeros(2,100); % eD,eF
-		skip_for_sync_log = zeros(1,100);
+		sync_log = zeros(4,100); % eD,eF,sts,valid
 	end
 
 	% Skip initial samples if required (some radios have dynamic LO compensation
@@ -367,22 +364,16 @@ function GoldenSniffer(config)
 	fread(fp,[2 nskip],sample_type);
 
 	% CORESET#0 format, shared by SIB1 and Random Access messages
-	CORESET0_format_known = false;
+	CORESET0.format_known = false;
 
 	% list of RNTIs with PDSCH with CRC OK
-	RNTI_count = 0;
-	RNTI_list = zeros(1,100);
-	RNTI_BWPstart = zeros(1,100); % -1 if unknown
-	RNTI_BWPsize = zeros(1,100);  % -1 if unknown
-	RNTI_symbAlloc = zeros(100,2); % symbol allocation
-	RNTI_N_ID__nSCID = zeros(1,100); % PDSCH DMRS
-	RNTI_nSCID = zeros(1,100);     % PDSCH DMRS
-	RNTI_DMRS_addPos = zeros(1,100); % PDSCH DM-RS conf
+	RNTI_param = struct('RNTI',{},'BWPstart',{},'BWPsize',{},'symbAlloc',{},'N_ID__nSCID',{},'nSCID',{},'DMRS_addPos',{});
 
 	% counters for unconfirmed DCIs, Format1_0 with CRC ok or failed, and 0_0
 	UE_RNTIs_count = zeros(size(KNOWN_UE_RNTIs));
 	UE_RNTIs_Format10_crcOK = zeros(size(KNOWN_UE_RNTIs));
 	UE_RNTIs_Format10_crcFail = zeros(size(KNOWN_UE_RNTIs));
+	UE_RNTIs_Format10_HARQ = zeros(size(KNOWN_UE_RNTIs));
 	UE_RNTIs_FormatXX_UNC = zeros(size(KNOWN_UE_RNTIs));
 	% list of unexpected RNTI's (may be all if KNOWN_UE_RNTIs is empty)
 	UNKNOWN_UE_RNTIs = [];
@@ -435,7 +426,7 @@ function GoldenSniffer(config)
 		fprintf('Artificial noise disabled\n');
 	end
 
-	VERBOSITY>=1 && fprintf('[ACQUIRE]\n'); %#ok <NASGU>
+	VERBOSITY>=1 && fprintf('[ACQUIRE]\n'); %#ok<VUNUS>
 
 	% main loop
 	while true
@@ -461,7 +452,7 @@ function GoldenSniffer(config)
 			case 'ACQUIRE'
 				% ========== STEP 1: ACQUISITION ==========
 				step1_start = toc; % Start timing for Step 1
-				[SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,PBCH_power_est,noise_power_est,SSS_freq,Cfo_eD,Cfo_eF2,phi_SSB,hSSB_state,hPSS_state,hPSS_norm_state] = ...
+				[SSB_found,iSSB,SSB_offset,ncellid,k120,H_est_PSS,PBCH_power_est,noise_power_est,SSS_freq,Cfo_eF2,phi_SSB,hSSB_state,hPSS_state,hPSS_norm_state] = ...
 					ACQUIRE(s,f0_MHz,GSCN_MHz,phi_SSB,fs,SCS,hSSB,hSSB_decim,hSSB_state,SSB_ind,hPSS,hPSS_state,hPSS_norm_state,...
 					PSS_freq,PSS_ind,PSS_corr_thres,CP_slack,cp_corr_thres,phase_comp,FIGURES,VERBOSITY,GSCN_corr_log);
 				step1_time = step1_time + toc - step1_start;
@@ -490,10 +481,8 @@ function GoldenSniffer(config)
 						- ceil(symSSB_ofs/(7*2^mu))*(N_CP_07-N_CP);
 					fread(fp,[2 mod(file_offset,ns)],sample_type);
 
-					% End Step 1 timing
-
 					state = 'TRACK';
-					VERBOSITY>=1 && fprintf('[TRACK]\n'); %#ok <NASGU>
+					VERBOSITY>=1 && fprintf('[TRACK]\n'); %#ok<VUNUS>
 				end
 
 			case 'TRACK'
@@ -518,15 +507,6 @@ function GoldenSniffer(config)
 					% Apply NLOS channel to the FREQUENCY DOMAIN signal (after FFT)
 					NLOS_channel_time = NLOS_channel_time + Tf;
 					[Y, ~] = apply_nlos_channel(Y, NLOS_channel_filter, NLOS_channel_time);
-
-					% % Calculate channel metrics
-					% channel_metrics = calculate_channel_metrics_freq(Y, Y_NLOS, channel_response);
-					% 
-					% % Log channel performance impact (silent version - only first frame)
-					% if SFN == -1
-					% 	fprintf('  [NLOS CHANNEL] Frame %d: Path Loss = %.2f dB, Freq Selectivity = %.3f\n', ...
-					% 		SFN, channel_metrics.path_loss_db, channel_metrics.avg_freq_selectivity);
-					% end
 				end
 
 				% ========== ARTIFICIAL NOISE INJECTION ==========
@@ -562,6 +542,8 @@ function GoldenSniffer(config)
 						%fprintf('upd noise_power: %g\n',noise_power_est);
 					end
 					noise_power_est_dB = 10*log10(noise_power_est);
+					% fprintf('  [DEBUG] Updated per-RE noise_est: %.2e (%.1f dB)\n', ...
+					% 	noise_power_est, noise_power_est_dB);
 
 					PBCH_power_est_new = mean(abs([Y(1+N_FFT/2+k120-120+(56:182),1+symSSB_ofs);...
 						Y(1+N_FFT/2+k120-120+(0:239),2+symSSB_ofs);...
@@ -572,14 +554,12 @@ function GoldenSniffer(config)
 					else
 						PBCH_power_est = 0.9*PBCH_power_est + 0.1*PBCH_power_est_new;
 					end
-					% fprintf('  [DEBUG] Updated per-RE noise_est: %.2e (%.1f dB)\n', ...
-					% 	noise_power_est, noise_power_est_dB);
 
 					Cfo_eF2 = Cfo_eF2 + Kif*alpha*Cfo_eD;
 					Cfo_eF = Kpf*alpha*Cfo_eD+Cfo_eF2;
-					alpha = 1; % Time since last measurement
+					alpha = 1; % frames since last measurement
 
-					% try decodeing the PBCH
+					% try decoding the PBCH
 					Y_PBCH = Y(1+N_FFT/2+k120+SSB_ind,symSSB_ofs+(1:4));
 					[SFN,ssbIndex,crcBCH,initialSystemInfo] = hDecodePBCH(ncellid,Y_PBCH,iSSB,L_max,mod(SFN+1,1024),FIGURES);
 					if SFN_start < 0
@@ -590,7 +570,30 @@ function GoldenSniffer(config)
 						initialSystemInfo.NFrame = mod(initialSystemInfo.NFrame + 1,1024);
 					end
 					SFN = initialSystemInfo.NFrame;
-					alpha = alpha + 1; % Time since last measurement
+					alpha = alpha + 1; % frames since last measurement
+				end
+
+				if bitand(FIGURES,0x0010)
+					sync_log = [sync_log(:,2:end),[Cfo_eD;Cfo_eF;skip_for_sync;PBCH_in_frame]];
+
+					if PBCH_in_frame
+						sync_log_valid = find(sync_log(4,:));
+						currentfigure(5)
+						subplot(3,1,1)
+						plot(sync_log_valid-size(sync_log,2),sync_log(1,sync_log_valid))
+						ylabel('CFO_{eD} [Hz]')
+						title('Estimated Carrier Frequency Offset (Doppler) Over Time')
+						subplot(3,1,2)
+						plot(sync_log_valid-size(sync_log,2),sync_log(2,sync_log_valid))
+						ylabel('CFO_{eF} [Hz]')
+						title('Estimated Carrier Frequency Offset (Phase) Over Time')
+						subplot(3,1,3)
+						stem(sync_log_valid-size(sync_log,2),sync_log(3,sync_log_valid))
+						ylabel('Number of Samples Skipped')
+						xlabel('Frame Index')
+						title('Synchronization Sample Skips Over Frames')
+						drawnow
+					end
 				end
 
 				if bitand(FIGURES,0x0040) && exist('noise_power_est_dB','var')
@@ -616,30 +619,31 @@ function GoldenSniffer(config)
 						end
 						rectangle('Position',...
 							[symSSB_ofs-0.5 N_FFT/2-sc_ofs+k120-120-0.5 4 240],...
-							'FaceColor',color,'EdgeColor','none','FaceAlpha',0.3)
+							'FaceColor',color,'EdgeColor','none','FaceAlpha',0.5)
 					end
 					drawnow
 				end
 
-				% we are only interested in the CORESET#0 subcarrier
-				% offset, as the DM-RS sequence is generated starting from it
-				if (PBCH_in_frame && crcBCH == 0) && ~CORESET0_format_known
+				% extract the CORESET#0 parameters from the MIB
+				if (PBCH_in_frame && crcBCH == 0) && ~CORESET0.format_known
 					scsSSB = hSSBurstSubcarrierSpacing(BlockPattern);
-					scsKSSB = kSSBSubcarrierSpacing(initialSystemInfo.SubcarrierSpacingCommon);
-					numRxSym = size(Y,2);
-					csetSubcarriers = hPDCCH0MonitoringResources(initialSystemInfo,...
-						scsSSB,minChannelBW,ssbIndex,numRxSym);
-					CORESET0_grid_N_RB = hCORESET0DemodulationBandwidth(initialSystemInfo,scsSSB,minChannelBW);
-					CORESET0_grid_RBstart = ((N_RB-CORESET0_grid_N_RB)*Nsc_RB/2+k120-initialSystemInfo.k_SSB*scsKSSB*1e3/SCS)/Nsc_RB;
-					CORESET0_BWPstart = (csetSubcarriers(1)-1)/Nsc_RB;
-					CORESET0_BWPsize = (csetSubcarriers(end)-csetSubcarriers(1)+1)/Nsc_RB;
-					CORESET0_offset = (CORESET0_grid_RBstart+CORESET0_BWPstart)*Nsc_RB;
 					scsCommon = initialSystemInfo.SubcarrierSpacingCommon;
 					scsPair = [scsSSB scsCommon];
-					[pdcch_CORESET0,CORESET0_pattern] = hPDCCH0Configuration(ssbIndex,initialSystemInfo,scsPair,ncellid,minChannelBW);
+					[CORESET0.pdcch,CORESET0.pattern] = hPDCCH0Configuration(ssbIndex,initialSystemInfo,scsPair,ncellid,minChannelBW);
+					[csetSubcarriers,~,~,~,CORESET0.duration] = hPDCCH0MonitoringResources(initialSystemInfo,...
+						scsSSB,minChannelBW,ssbIndex,size(Y,2));
+
+					CORESET0.grid_N_RB = hCORESET0DemodulationBandwidth(initialSystemInfo,scsSSB,minChannelBW);
+					scsKSSB = kSSBSubcarrierSpacing(scsCommon);
+					CORESET0.grid_RBstart = ((N_RB-CORESET0.grid_N_RB)*Nsc_RB/2+k120-initialSystemInfo.k_SSB*scsKSSB*1e3/SCS)/Nsc_RB;
+					CORESET0.BWPstart = (csetSubcarriers(1)-1)/Nsc_RB;
+					CORESET0.BWPsize = (csetSubcarriers(end)-csetSubcarriers(1)+1)/Nsc_RB;
+					CORESET0.Nmax_DCI_Fallback1_0 = 28+ceil(log2(CORESET0.BWPsize*(CORESET0.BWPsize+1)/2));
+					CORESET0.offset = (CORESET0.grid_RBstart+CORESET0.BWPstart)*Nsc_RB;
+					CORESET0.format_known = true;
 				end
 
-				% noCDM NZP-CSI-RS and ZP-CSI-RS
+				% update the noCDM NZP-CSI-RS we track
 				if SFN >= 0
 					if nzpCSI_known
 						if bitand(FIGURES,0x0080)
@@ -658,8 +662,8 @@ function GoldenSniffer(config)
 						% Search for CSI#1 or #2 sequence (using is_ok test of c_init)
 						% Should be made more robust, searching until found first time, then by correlation
 						step4_start = toc;
-						CSI1=csi_update(Y,N_RB,SFN,CSI1,FIGURES);
-						CSI2=csi_update(Y,N_RB,SFN,CSI2,FIGURES);
+						CSI1=csi_update(Y,N_RB,SFN,CSI1);
+						CSI2=csi_update(Y,N_RB,SFN,CSI2);
 						step4_time = step4_time + toc - step4_start;
 						if CSI1.SFN_period >= 0 && CSI2.SFN_period >= 0
 							nzpCSI_known = true;
@@ -672,23 +676,22 @@ function GoldenSniffer(config)
 							pause
 						end
 					end
-				end
-
-				if SFN < 0
+				else
 					% if the SFN isn't known yet, skip
 					continue
 				end
 
 				% blind search for DCIs
 				step3_start = toc;
-				dci = blind_search_for_DCIs(Y,sc_ofs,Nsc,CORESET0_offset,TDD_pattern,max_duration,ncellid,FIGURES);
+				dci = blind_search_for_DCIs(Y,sc_ofs,Nsc,CORESET0.offset,TDD_pattern,max_duration,ncellid,FIGURES);
 				step3_time = step3_time + toc - step3_start;
 
 				if bitand(FIGURES,0x0040) && exist('noise_power_est_dB','var')
 					currentfigure(7)
 					for iDci = 1:numel(dci)
 						for irc = 1:size(dci(iDci).cand,1)
-							rectangle('Position',[dci(iDci).slot*Nsymb_slot-0.5 dci(iDci).cand(irc,1)-1.5 dci(iDci).duration dci(iDci).cand(irc,2)-dci(iDci).cand(irc,1)+1],'FaceColor','g','EdgeColor','none','FaceAlpha',0.5)
+							rectangle('Position',[dci(iDci).slot*Nsymb_slot-0.5 dci(iDci).cand(irc,1)-1.5 ...
+								dci(iDci).duration dci(iDci).cand(irc,2)-dci(iDci).cand(irc,1)+1],'FaceColor','g','EdgeColor','none','FaceAlpha',0.5)
 						end
 					end
 					drawnow
@@ -707,268 +710,46 @@ function GoldenSniffer(config)
 						UE_RNTIs_count = [UE_RNTIs_count,1]; %#ok<AGROW>
 						UE_RNTIs_Format10_crcOK = [UE_RNTIs_Format10_crcOK,0]; %#ok<AGROW>
 						UE_RNTIs_Format10_crcFail = [UE_RNTIs_Format10_crcFail,0]; %#ok<AGROW>
+						UE_RNTIs_Format10_HARQ = [UE_RNTIs_Format10_HARQ,0]; %#ok<AGROW>
 						UE_RNTIs_FormatXX_UNC = [UE_RNTIs_FormatXX_UNC,0]; %#ok<AGROW>
 					end
 
-					% if it is a DCI Fallback 1_0, try and decode the payload, and if successful save it to the pcap
-					% this branch uses the MathWorks functions from the sib1 recovery example
-					if dci(iDci).CORESET0 && dci(iDci).NID == ncellid && dci(iDci).RNTI == 0xffff % SI-RNTI==FFFF
-
-						grid_ofs = CORESET0_grid_RBstart;
-						% grid_N_RB = CORESET0_grid_N_RB;
-						BWPstart = CORESET0_BWPstart;
-						BWPsize = CORESET0_BWPsize;
-
-						step4_start = toc;
-						dci_sib = DCIFormat1_0_SIRNTI(BWPsize);
-						dci_sib = fromBits(dci_sib,dci(iDci).bits);
-						pcap_RNTIType = nrPCAPW.SystemInfoRNTI;
-						isDL = 1; rv = dci_sib.RedundancyVersion; % so we can use the C-RNTI code
-						[L_RB,RBstart] = hDecodeRIV(BWPsize,dci_sib.FrequencyDomainResources);
-						[code_rate,~] = hMCS(dci_sib.ModulationCoding);
-
-						carrier = hCarrierConfigSIB1(ncellid,initialSystemInfo,pdcch_CORESET0);
-						[pdsch,K0] = hSIB1PDSCHConfiguration(dci_sib,BWPsize,...
-							initialSystemInfo.DMRSTypeAPosition,CORESET0_pattern);
-						carrier.NSlot = dci(iDci).slot+K0;
-						rxSlotGrid = Y(sc_ofs+(grid_ofs+BWPstart)*Nsc_RB+(1:BWPsize*Nsc_RB),(dci(iDci).slot+K0)*Nsymb_slot+(1:Nsymb_slot));
-						[bits,crc,CSI0] = hDecodePDSCH_new(carrier,pdsch,rxSlotGrid,code_rate,rv,CSI0,CSI1,CSI2,RE_free_thres,false,FIGURES);
-						step4_time = step4_time + toc - step4_start;
-
-					elseif PDSCH_decoding % non-SIB messages
-
-						% this code assumes that the configured Random Access uses the CORESET#0
-						% and not another CORESET specified in the SIB1
-						if dci(iDci).CORESET0 && dci(iDci).NID == ncellid && dci(iDci).RNTI <= 0x4600 && numel(dci(iDci).bits) <= Nmax_DCI_Fallback1_0 % RA-RNTI
-
-							% Format_1_0 for RA-RNTI
-							fdaNbits = numel(dci(iDci).bits) - 28;
-							fda = sum(dci(iDci).bits(1:fdaNbits).*2.^(fdaNbits-1:-1:0));
-							tdra = sum(dci(iDci).bits(fdaNbits+(1:4)).*[8 4 2 1]);
-							interleaved_mapping = dci(iDci).bits(fdaNbits+5);
-							mcs = sum(dci(iDci).bits(fdaNbits+(6:10)).*[16 8 4 2 1]);
-							tb_scaling = sum(dci(iDci).bits(fdaNbits+(11:12)).*[2 1]);
-							reserved = sum(dci(iDci).bits(fdaNbits+(13:28)).*2.^(15:-1:0));
-							pcap_RNTIType = nrPCAPW.RandomAccessRNTI;
-							isDL = 1; rv = 0; % so we can use the C-RNTI code
-							if VERBOSITY>=3,fprintf('    fda:%d tdra:%d intlv:%d mcs:%d tb_scaling:%d rsvd:%d\n',...
-								fda,tdra,interleaved_mapping,mcs,tb_scaling,reserved);end
-
-						else % C-RNTI
-
-							% we only support Fallback1_0 DCIs
-							% check if the number of bits is compatible
-							if dci(iDci).bits(1) && numel(dci(iDci).bits) <= Nmax_DCI_Fallback1_0
-								fdaNbits = numel(dci(iDci).bits) - 28;
-								isDL = dci(iDci).bits(1);
-								fda = sum(dci(iDci).bits(2:fdaNbits+1).*2.^(fdaNbits-1:-1:0));
-								tdra = sum(dci(iDci).bits(fdaNbits+(2:5)).*[8 4 2 1]);
-								interleaved_mapping = dci(iDci).bits(fdaNbits+6);
-								mcs = sum(dci(iDci).bits(fdaNbits+(7:11)).*[16 8 4 2 1]);
-								ndi = dci(iDci).bits(fdaNbits+12);
-								rv = sum(dci(iDci).bits(fdaNbits+(13:14)).*[2 1]);
-								harqid = sum(dci(iDci).bits(fdaNbits+(15:18)).*[8 4 2 1]);
-								dai = sum(dci(iDci).bits(fdaNbits+(19:20)).*[2 1]);
-								tpc_cmd = sum(dci(iDci).bits(fdaNbits+(21:22)).*[2 1]);
-								pucch_ri = sum(dci(iDci).bits(fdaNbits+(23:25)).*[4 2 1]);
-								pdsch_harq_fbti = sum(dci(iDci).bits(fdaNbits+(26:28)).*[4 2 1]);
-								pcap_RNTIType = nrPCAPW.CellRNTI;
-								if VERBOSITY>=3,fprintf('    isDL:%d fda:%d tdra:%d intlv:%d mcs:%d ndi:%d rv:%d harqId:%d dai:%d tpc:%d pucch_ri:%d harq_fbti:%d\n',...
-									isDL,fda,tdra,interleaved_mapping,mcs,ndi,rv,harqid,dai,tpc_cmd,pucch_ri,pdsch_harq_fbti);end
-							else
-								isDL = 0;
-							end
-						end
-						if isDL && rv == 0
-							[code_rate,modulation]=hMCS(mcs);
-							% we also assume no delayed allocations
-							K0 = 0;
-
-							% might be CORESET#0 of a false positive
-							if dci(iDci).CORESET0 && CORESET0_grid_RBstart>=0
-								grid_N_RB = CORESET0_grid_N_RB;
-								grid_ofs = CORESET0_grid_RBstart;
-
-								BWPsize = CORESET0_BWPsize;
-								BWPstart = CORESET0_grid_RBstart+CORESET0_BWPstart;
-
-								N_ID__nSCID = ncellid;
-								nSCID = 0;
-								DMRS_addPos = 2;
-								symbAlloc = [dci(iDci).duration Nsymb_slot-dci(iDci).duration];
-							else
-								grid_N_RB = N_RB;
-								grid_ofs = 0;
-
-								RNTI_listid = find(dci(iDci).RNTI == RNTI_list(1:RNTI_count));
-								if numel(RNTI_listid)==0
-									BWPsize = -1;
-									BWPstart = -1;
-									symbAlloc = [];
-									N_ID__nSCID = -1;
-									nSCID = -1;
-									DMRS_addPos = -1;
-								else
-									BWPsize = RNTI_BWPsize(RNTI_listid);
-									BWPstart = RNTI_BWPstart(RNTI_listid);
-									symbAlloc = RNTI_symbAlloc(RNTI_listid,:);
-									N_ID__nSCID = RNTI_N_ID__nSCID(RNTI_listid);
-									nSCID = RNTI_nSCID(RNTI_listid);
-									DMRS_addPos = RNTI_DMRS_addPos(RNTI_listid);
-								end
-							end
-
-							% if the BWPsize (and start RB is known, we can proceed directly)
-							if BWPsize > 0
-								step4_start = toc;
-								[L_RB,RBstart] = hDecodeRIV(BWPsize,fda);
-
-								carrier=nrCarrierConfig('NCellID',ncellid,...
-									'SubcarrierSpacing',SCS/1000,'CyclicPrefix','normal',...
-									'NSizeGrid',grid_N_RB,'NStartGrid',grid_ofs,'NSlot',dci(iDci).slot,...
-									'NFrame',SFN);
-								pdsch=nrPDSCHConfig('NSizeBWP',BWPsize,'NStartBWP',BWPstart,...
-									'Modulation',modulation,'NumLayers',1,'MappingType','A',...
-									'SymbolAllocation',symbAlloc,'PRBSet',RBstart+(0:L_RB-1),...
-									'PRBSetType','VRB','VRBToPRBInterleaving',interleaved_mapping,...
-									'VRBBundleSize',2,'NID',ncellid,'RNTI',dci(iDci).RNTI);
-								pdsch.DMRS=nrPDSCHDMRSConfig('DMRSConfigurationType',1,...
-									'DMRSReferencePoint','CRB0','DMRSTypeAPosition',2,...
-									'DMRSAdditionalPosition',DMRS_addPos,'DMRSLength',1,...
-									'CustomSymbolSet',[],'DMRSPortSet',[],...
-									'NIDNSCID',N_ID__nSCID,'NSCID',nSCID);
-
-								rxSlotGrid = Y(sc_ofs+grid_ofs*Nsc_RB+(1:grid_N_RB*Nsc_RB),...
-									(dci(iDci).slot+K0)*Nsymb_slot+(1:Nsymb_slot));
-								[bits,crc,CSI0] = hDecodePDSCH_new(carrier,pdsch,rxSlotGrid,code_rate,rv,CSI0,CSI1,CSI2,RE_free_thres,true,FIGURES);
-								step4_time = step4_time + toc - step4_start;
-							else
-								% need to find the BWPsize for this DCI
-								% if a unique valid BWPsize/BWPstart configuration is
-								% found, save its parameters in RNTI_list
-
-								step4_start = toc;
-								[FDA_BWP_hyp,nHyp] = find_FDA_BWP_hypotheses(...
-									Y(1+sc_ofs+(0:Nsc_RB*N_RB-1),(dci(iDci).slot+K0)*Nsymb_slot+(dci(iDci).duration+1:Nsymb_slot)),...
-									RE_busy_thres*sqrt(noise_power_est)*Nsc_RB*(Nsymb_slot-dci(iDci).duration),...
-									FDA_BWP_int(1+fdaNbits,:),fda,dci(iDci).cand(1)/Nsc_RB,(dci(iDci).cand(2)-dci(iDci).cand(1)+1)/Nsc_RB);
-
-								% for every possible interpretation of the
-								% fda field, find the corresponding
-								% BWPstart and try and decode the PDSCH
-								for iHyp = 1:nHyp
-									L_RB = FDA_BWP_hyp(iHyp,1);
-									RBstart = FDA_BWP_hyp(iHyp,2);
-									BWPsize = FDA_BWP_hyp(iHyp,3);
-									BWPstart = FDA_BWP_hyp(iHyp,4);
-
-									% the toolbox requires the whole slot, not just the BWP
-									rxSlotGrid = Y(sc_ofs+grid_ofs*Nsc_RB+(1:grid_N_RB*Nsc_RB),...
-										(dci(iDci).slot+K0)*Nsymb_slot+(1:Nsymb_slot));
-
-									carrier = nrCarrierConfig('NCellID',ncellid,...
-										'SubcarrierSpacing',SCS/1000,'CyclicPrefix','normal',...
-										'NSizeGrid',grid_N_RB,'NStartGrid',grid_ofs,'NSlot',dci(iDci).slot,...
-										'NFrame',SFN);
-
-									symbAlloc = PDSCH_symbAlloc_autodetect(rxSlotGrid,BWPstart,RBstart,L_RB,dci(iDci).duration,RE_free_thres*sqrt(noise_power_est)*Nsc_RB*L_RB);
-
-									% Create PDSCH configuration (same as in hDecodePDSCH)
-									pdsch=nrPDSCHConfig('NSizeBWP',BWPsize,'NStartBWP',BWPstart,...
-										'Modulation',modulation,'NumLayers',1,'MappingType','A',...
-										'SymbolAllocation',symbAlloc,'PRBSet',RBstart+(0:L_RB-1),...
-										'PRBSetType','VRB','VRBToPRBInterleaving',interleaved_mapping,...
-										'VRBBundleSize',2,'NID',dci(iDci).NID,'RNTI',dci(iDci).RNTI);
-
-									% Auto detect PDSCH DM-RS configuration
-									[N_ID__nSCID,nSCID,DMRS_addPos] = PDSCH_DMRS_autodetect(rxSlotGrid,BWPstart,RBstart,L_RB,dci(iDci).slot,dci(iDci).duration);
-									if N_ID__nSCID < 0
-										continue % nHyp
-									end
-									pdsch.DMRS=nrPDSCHDMRSConfig('DMRSConfigurationType',1,...
-										'DMRSReferencePoint','CRB0','DMRSTypeAPosition',2,...
-										'DMRSAdditionalPosition',DMRS_addPos,'DMRSLength',1,...
-										'CustomSymbolSet',[],'DMRSPortSet',[],...
-										'NIDNSCID',N_ID__nSCID,'NSCID',nSCID);
-
-									[bits,crc,CSI0] = hDecodePDSCH_new(carrier,pdsch,rxSlotGrid,code_rate,rv,CSI0,CSI1,CSI2,RE_free_thres,false,FIGURES);
-
-									if crc == 0 && numel(RNTI_listid) == 0
-										RNTI_count = RNTI_count + 1;
-										RNTI_list(RNTI_count) = dci(iDci).RNTI;
-										if FDA_BWP_hyp(iHyp,5) == 0
-											RNTI_BWPsize(RNTI_count) = BWPsize; % If not ambiguous
-										else
-											RNTI_BWPsize(RNTI_count) = -1;
-										end
-										RNTI_BWPstart(RNTI_count) = BWPstart;
-										RNTI_symbAlloc(RNTI_count,:) = symbAlloc;
-										RNTI_N_ID__nSCID(RNTI_count) = N_ID__nSCID;
-										RNTI_nSCID(RNTI_count) = nSCID;
-										RNTI_DMRS_addPos(RNTI_count) = DMRS_addPos;
-										break % nHyp
-									end
-								end
-								step4_time = step4_time + toc - step4_start;
-								% the BWP configuration changed, invalidate
-								% the RNTI
-								if exist('crc','var')
-									if crc && numel(RNTI_listid)
-										RNTI_list(RNTI_listid) = RNTI_list(RNTI_listid)+0x10000;
-									end
-								end
-							end
-						end
-					else
-						isDL = dci(iDci).bits(1);
-						rv = -1;
-					end
+					% if it is a DCI Fallback 1_0, try and decode the payload,
+					% and if successful save it to the pcap
+					step4_start = toc;
+					[isDL,rv,crc,bits,pcap_RNTIType,CSI0,RNTI_param] = ...
+						parse_DCI_and_decodePDSCH(dci(iDci),ncellid,initialSystemInfo,CORESET0,Y,sc_ofs,N_RB,SCS,...
+						CSI0,CSI1,CSI2,RNTI_param,RE_busy_thres,RE_free_thres,noise_power_est,PDSCH_decoding,nrPCAPW,VERBOSITY,FIGURES);
+					step4_time = step4_time + toc - step4_start;
 					
-					RNTI_ind = find(dci(iDci).RNTI == KNOWN_UE_RNTIs);
-					if ~isscalar(RNTI_ind)
-						RNTI_ind = numel(KNOWN_UE_RNTIs) + find(dci(iDci).RNTI == UNKNOWN_UE_RNTIs);
-					end
-					if isDL && rv == 0
-						if exist('crc','var') && crc == 0
-							UE_RNTIs_Format10_crcOK(RNTI_ind) = UE_RNTIs_Format10_crcOK(RNTI_ind) + 1;
+					RNTI_ind = find(dci(iDci).RNTI == [KNOWN_UE_RNTIs,UNKNOWN_UE_RNTIs]);
+					if isDL
+						if rv == 0
+							if crc == 0
+								UE_RNTIs_Format10_crcOK(RNTI_ind) = UE_RNTIs_Format10_crcOK(RNTI_ind) + 1;
+							else
+								UE_RNTIs_Format10_crcFail(RNTI_ind) = UE_RNTIs_Format10_crcFail(RNTI_ind) + 1;
+							end
 						else
-							UE_RNTIs_Format10_crcFail(RNTI_ind) = UE_RNTIs_Format10_crcFail(RNTI_ind) + 1;
+							UE_RNTIs_Format10_HARQ(RNTI_ind) = UE_RNTIs_Format10_HARQ(RNTI_ind) + 1;
 						end
 					else
 						UE_RNTIs_FormatXX_UNC(RNTI_ind) = UE_RNTIs_FormatXX_UNC(RNTI_ind) + 1;
 					end
+					if isDL && rv == 0 && crc == 0
+						if VERBOSITY >= 4,fprintf('      trBlk: %s\n',reshape(dec2hex(reshape(2.^(7:-1:0)*reshape(single(bits),8,[]),1,[])).',1,[]));end
 
-					if isDL && rv == 0
-						if exist('crc','var') && crc == 0
-							if VERBOSITY >= 4,fprintf('      trBlk: %s\n',reshape(dec2hex(reshape(2.^(7:-1:0)*reshape(single(bits),8,[]),1,[])).',1,[]));end
-
-							% PCAP output
-							nrMACPDU = reshape(2.^(7:-1:0)*reshape(double(bits),[8 numel(bits)/8]),[1 numel(bits)/8]);
-							packetInfo = struct();
-							packetInfo.RadioType = pcap_RadioType;
-							packetInfo.LinkDir = nrPCAPW.Downlink;
-							packetInfo.RNTIType = pcap_RNTIType;
-							packetInfo.RNTI = dci(iDci).RNTI;
-							packetInfo.SystemFrameNumber = SFN;
-							packetInfo.SlotNumber = dci(iDci).slot;
-							write(nrPCAPW,nrMACPDU,pcap_timestamp+dci(iDci).slot*1000,PacketInfo=packetInfo);
-						end
-						if bitand(FIGURES,0x0040) && exist('noise_power_est_dB','var')
-							if exist('crc','var') && crc==0
-								color ='g';
-							else
-								color='r';
-							end
-							currentfigure(7)
-							rectangle('Position',...
-								[(dci(iDci).slot+K0)*Nsymb_slot+dci(iDci).duration-0.5 ...
-								(grid_ofs+BWPstart+RBstart)*Nsc_RB-0.5 ...
-								Nsymb_slot-dci(iDci).duration L_RB*Nsc_RB],...
-								'FaceColor',color,'EdgeColor','none','FaceAlpha',0.5)
-							drawnow
-						end
+						% PCAP output
+						nrMACPDU = reshape(2.^(7:-1:0)*reshape(double(bits),[8 numel(bits)/8]),[1 numel(bits)/8]);
+						packetInfo = struct();
+						packetInfo.RadioType = pcap_RadioType;
+						packetInfo.LinkDir = nrPCAPW.Downlink;
+						packetInfo.RNTIType = pcap_RNTIType;
+						packetInfo.RNTI = dci(iDci).RNTI;
+						packetInfo.SystemFrameNumber = SFN;
+						packetInfo.SlotNumber = dci(iDci).slot;
+						write(nrPCAPW,nrMACPDU,pcap_timestamp+dci(iDci).slot*1000/2^mu,PacketInfo=packetInfo);
 					end
-
 				end % iDci
 				if ~zpCSI_known && CSI0.SFN_period > 0
 					zpCSI_known = true;
@@ -987,39 +768,15 @@ function GoldenSniffer(config)
 				fprintf('\n  SFN: %4d\n',SFN);
 				fprintf('  RNTI:    ');for i = 1:numel(KNOWN_UE_RNTIs),fprintf(' %04x',KNOWN_UE_RNTIs(i));end
 				for i = 1:numel(UNKNOWN_UE_RNTIs),fprintf(' %04x',UNKNOWN_UE_RNTIs(i));end;fprintf('\n');
-				%fprintf('         ');for i = 1:numel(UE_RNTIs_count),fprintf(' %4d',UE_RNTIs_count(i));end;fprintf('\n');
 				fprintf('  1_0 crcOK');for i = 1:numel(UE_RNTIs_Format10_crcOK),fprintf(' %4d',UE_RNTIs_Format10_crcOK(i));end;fprintf('\n');
 				fprintf('  1_0 crcKO');for i = 1:numel(UE_RNTIs_Format10_crcFail),fprintf(' %4d',UE_RNTIs_Format10_crcFail(i));end;fprintf('\n');
+				fprintf('  1_0 HARQ ');for i = 1:numel(UE_RNTIs_Format10_HARQ),fprintf(' %4d',UE_RNTIs_Format10_HARQ(i));end;fprintf('\n');
 				fprintf('  X_X unc  ');for i = 1:numel(UE_RNTIs_FormatXX_UNC),fprintf(' %4d',UE_RNTIs_FormatXX_UNC(i));end;fprintf('\n\n');
 			end
 		elseif SFN >= 0
 			fprintf('SFN: %4d - #DCI: %d (Format1_0 CRC OK: %d/%d = %5.1f%%)\n',SFN,sum(UE_RNTIs_count),...
 				sum(UE_RNTIs_Format10_crcOK),sum(UE_RNTIs_Format10_crcOK)+sum(UE_RNTIs_Format10_crcFail),...
 				100*sum(UE_RNTIs_Format10_crcOK)/(sum(UE_RNTIs_Format10_crcOK+UE_RNTIs_Format10_crcFail)));
-		end
-
-		if bitand(FIGURES,0x0010)
-			Cfo_log = [Cfo_log(:,2:end),[Cfo_eD;Cfo_eF]];
-			skip_for_sync_log = [skip_for_sync_log(2:end),skip_for_sync];
-			currentfigure(5)
-
-			subplot(3,1,1)
-			plot(Cfo_log(1,:))
-			ylabel('CFO_{eD} [Hz]')
-			title('Estimated Carrier Frequency Offset (Doppler) Over Time')
-
-			subplot(3,1,2)
-			plot(Cfo_log(2,:))
-			ylabel('CFO_{eF} [Hz]')
-			title('Estimated Carrier Frequency Offset (Phase) Over Time')
-
-			subplot(3,1,3)
-			stem(skip_for_sync_log)
-			ylabel('Number of Samples Skipped')
-			xlabel('Frame Index')
-			title('Synchronization Sample Skips Over Frames')
-
-			drawnow
 		end
 	end
 	SFN_stop = SFN;
@@ -1090,5 +847,6 @@ function GoldenSniffer(config)
 	for i = 1:numel(UNKNOWN_UE_RNTIs),fprintf(' 0x%04x',UNKNOWN_UE_RNTIs(i));end;fprintf('\n');
 	fprintf('  Format1_0 with CRC pass:');for i = 1:numel(UE_RNTIs_Format10_crcOK),fprintf(' %6d',UE_RNTIs_Format10_crcOK(i));end;fprintf('\n');
 	fprintf('  Format1_0 with CRC fail:');for i = 1:numel(UE_RNTIs_Format10_crcFail),fprintf(' %6d',UE_RNTIs_Format10_crcFail(i));end;fprintf('\n');
+	fprintf('  Format1_0 HARQ RV!=0   :');for i = 1:numel(UE_RNTIs_Format10_HARQ),fprintf(' %6d',UE_RNTIs_Format10_HARQ(i));end;fprintf('\n');
 	fprintf('  FormatX_X (unconfirmed):');for i = 1:numel(UE_RNTIs_FormatXX_UNC),fprintf(' %6d',UE_RNTIs_FormatXX_UNC(i));end;fprintf('\n\n');
 end

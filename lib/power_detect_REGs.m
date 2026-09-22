@@ -19,7 +19,7 @@
 %   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 %   IN THE SOFTWARE.
 %
-function [duration,bitmap,runs_out] = power_detect_REGs(Y,CORESET0_offset)
+function [duration,runs_out] = power_detect_REGs(Y,CORESET0_offset)
 	% this heuristic assumes that the CORESET#0 duration and UE-dedicated
 	% CORESETS have the same duration
 	CORR_THRES = 0.975; % FIXME
@@ -39,12 +39,14 @@ function [duration,bitmap,runs_out] = power_detect_REGs(Y,CORESET0_offset)
 		else
 			duration = 1;
 		end
+	else
+		duration = 1;
 	end
 	% fprintf('duration: %d',duration);
 
 	Nsc_REG = 12;
 	Nsc_CCE = 6*Nsc_REG/duration;
-	bitmap = false(size(Y,1),duration);
+	%bitmap = false(size(Y,1),duration);
 	runs = [];
 	Nruns = 0;
 
@@ -53,7 +55,7 @@ function [duration,bitmap,runs_out] = power_detect_REGs(Y,CORESET0_offset)
 	AMPLITUDE_TOL = 0.4;
 	loops = 3;
 	while loops > 0
-		[val,pos]=max(Y);
+		[~,pos]=max(Y);
 		pos_r = pos;
 		while pos_r<N && abs(Y(pos_r+1)-Y(pos_r)) < AMPLITUDE_TOL*(Y(pos_r+1)+Y(pos_r))
 			pos_r = pos_r+1;
@@ -62,12 +64,9 @@ function [duration,bitmap,runs_out] = power_detect_REGs(Y,CORESET0_offset)
 		while pos_l>1 && abs(Y(pos_l-1)-Y(pos_l)) < AMPLITUDE_TOL*(Y(pos_l-1)+Y(pos_l))
 			pos_l = pos_l-1;
 		end
-		if mod(pos_r-pos_l+1,Nsc_REG)==0
-			runs = [runs;pos_l,pos_r,mean(abs(Y(pos_l:pos_r)).^2)];
-			Nruns = Nruns + 1;
-		else
-			runs = [runs;pos_l,pos_r,mean(abs(Y(pos_l:pos_r)).^2)];
-			Nruns = Nruns + 1;
+		runs = [runs;pos_l,pos_r,mean(abs(Y(pos_l:pos_r)).^2)];
+		Nruns = Nruns + 1;
+		if mod(pos_r-pos_l+1,Nsc_REG)~=0
 			loops = loops - 1;
 		end
 		Y(pos_l:pos_r) = 0;
@@ -95,8 +94,4 @@ function [duration,bitmap,runs_out] = power_detect_REGs(Y,CORESET0_offset)
 			end
 		end
 	end
-	% if size(runs_out,1) > 1
-	% 	[~,perm] = sort(runs_out(:,2)-runs_out(:,1)+1,'descend');
-	% 	runs_out = runs_out(perm,:);
-	% end
 end
