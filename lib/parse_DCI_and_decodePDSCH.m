@@ -29,8 +29,9 @@ function [isDL,rv,crc,bits,pcap_RNTIType,CSI0,RNTI_param] = ...
 	Nsc_RB = 12;
 	Nsymb_slot = 14;
 
-	persistent FDA_BWP_int Nmax_DCI_Fallback1_0
-	if isempty(FDA_BWP_int)
+	persistent FDA_BWP_int Nmax_DCI_Fallback1_0 FDA_BWP_int_N_RB
+	if isempty(FDA_BWP_int) || FDA_BWP_int_N_RB ~= N_RB
+		FDA_BWP_int_N_RB = N_RB;
 		[FDA_BWP_int,nFDA_max] = FDA_BWP_int_calc(N_RB);
 		Nmax_DCI_Fallback1_0 = 28 + nFDA_max;
 		% Nmax_DCI_Fallback0_0 = 20 + nFDA_max;
