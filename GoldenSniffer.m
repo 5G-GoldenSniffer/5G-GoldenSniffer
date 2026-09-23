@@ -723,7 +723,7 @@ function GoldenSniffer(config)
 					step4_time = step4_time + toc - step4_start;
 					
 					RNTI_ind = find(dci(iDci).RNTI == [KNOWN_UE_RNTIs,UNKNOWN_UE_RNTIs]);
-					if isDL
+					if isDL && PDSCH_decoding
 						if rv == 0
 							if crc == 0
 								UE_RNTIs_Format10_crcOK(RNTI_ind) = UE_RNTIs_Format10_crcOK(RNTI_ind) + 1;
@@ -849,4 +849,7 @@ function GoldenSniffer(config)
 	fprintf('  Format1_0 with CRC fail:');for i = 1:numel(UE_RNTIs_Format10_crcFail),fprintf(' %6d',UE_RNTIs_Format10_crcFail(i));end;fprintf('\n');
 	fprintf('  Format1_0 HARQ RV!=0   :');for i = 1:numel(UE_RNTIs_Format10_HARQ),fprintf(' %6d',UE_RNTIs_Format10_HARQ(i));end;fprintf('\n');
 	fprintf('  FormatX_X (unconfirmed):');for i = 1:numel(UE_RNTIs_FormatXX_UNC),fprintf(' %6d',UE_RNTIs_FormatXX_UNC(i));end;fprintf('\n\n');
+
+	PBCH_SNR_dB = 10*log10(PBCH_power_est/noise_power_est);
+	fprintf('PBCH SNR: %g dB\n',PBCH_SNR_dB);
 end
