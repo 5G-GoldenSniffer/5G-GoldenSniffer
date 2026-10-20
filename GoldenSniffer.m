@@ -443,10 +443,10 @@ function GoldenSniffer(config)
 		else
 			s = [1 1i]*s_raw;
 		end
-		[s,hChannel_state] = filter(hChannel,1,s,hChannel_state);
 		% f0_corr is used to correct the trace if acquisition was not centered
 		s = s .* exp(2i*pi*(f0_corr-Cfo_eF)*ts + 1i*phi_s);
 		phi_s = phi_s + 2*pi*(f0_corr-Cfo_eF)*ns*Ts;
+		[s,hChannel_state] = filter(hChannel,1,s,hChannel_state);
 		
 		switch state
 			case 'ACQUIRE'
