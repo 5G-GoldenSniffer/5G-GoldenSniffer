@@ -4,27 +4,36 @@
 [![5G NR](https://img.shields.io/badge/5G-NR-orange.svg)](https://www.3gpp.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Golden Sniffer** is a novel, low-complexity passive 5G NR sniffer that exploits the deterministic nature of **Gold sequences** in DMRS (Demodulation Reference Signals) to achieve efficient blind detection and decoding of downlink control and data channels. Unlike traditional sniffers that perform exhaustive search, Golden Sniffer uses DMRS phase analysis to drastically reduce computational complexity while achieving >94% DCI detection rate.
+**Golden Sniffer** is a low-complexity passive 5G NR sniffer that exploits the deterministic structure of the **Gold sequences** used by the DM-RS (Demodulation Reference Signals) to blindly detect and decode the downlink control and data channels. Instead of an exhaustive search over RNTIs, it reads the DM-RS scrambling ID directly from the phases of the PDCCH DM-RS, and recovers the RNTI and the DCI size by linear algebra over GF(2), achieving a >94% DCI detection rate.
 
 ## 🔬 Research Contributions
 
-This tool implements breakthrough techniques for 5G NR passive monitoring:
+This tool implements the following techniques for 5G NR passive monitoring:
 
-1. **Power-Clustering PDCCH Search Space detection**: Only considers possible DCI candidates in correspondence of power clusters
-1. **DMRS-Guided Blind Search**: Exploits the Gold Sequence generation rule to directly extract the PDCCH DM-RS scrambling ID
-2. **Blind RNTI extraction thorugh Linear Inversion over GF(2)**: In the high-SNR limit, extract the RNTI and DCI message size through fast linear algebra over GF(2)
-3. **Single layer PDSCH decoding with BWP and ZP-CSI-RS identification**: Validation of the PHY parameters through DL-SCH decoding
+1. **Power-clustering PDCCH search space detection**: only the power clusters in the CORESET are considered as DCI candidates
+2. **DM-RS-guided blind search**: exploits the Gold sequence generation rule to extract the PDCCH DM-RS scrambling ID directly from the received DM-RS
+3. **Blind RNTI extraction through linear inversion over GF(2)**: in the high-SNR limit, the RNTI and the DCI payload size are recovered with fast linear algebra over GF(2)
+4. **Single-layer PDSCH decoding with BWP and ZP-CSI-RS identification**: the PHY parameters are validated by decoding the DL-SCH
 
 ## 🎯 Key Features
 
-- **Gold Sequence Exploitation**: Leverages deterministic DMRS generation to reduce blind search complexity
-- **Intelligent DM-RS Scrambling ID Recovery**: Phase-based technique to extract 16-bit Scrambling ID from PDCCH DM-RS without exhaustive search
-- **Robust Synchronization and Tracking**: Receiver frame processing does not require external time or frequency references
-- **MIB/SIB1 Decoding**: Extraction of system information from broadcast channels
-- **Smart DCI Detection**: Energy detection + phase verification to minimize false positives
-- **PDSCH Decoding**: Data channel decoding with MAC PDU extraction into PCAP files
-- **Multi-UE Tracking**: Seamless monitoring of multiple UEs
-- **FDD/TDD Support**: Works with both frequency and time division duplexing modes
+- **Gold Sequence Exploitation**: leverages the deterministic DM-RS generation to reduce the blind search complexity
+- **DM-RS Scrambling ID Recovery**: phase-based technique that extracts the 16-bit scrambling ID from the PDCCH DM-RS without exhaustive search
+- **Blind RNTI Discovery**: the UE RNTIs don't need to be known in advance
+- **Robust Synchronization and Tracking**: the receiver does not require external time or frequency references
+- **MIB/SIB1 Decoding**: system information extracted from the broadcast channels
+- **Smart DCI Detection**: energy detection + phase verification to minimize false positives
+- **PDSCH Decoding**: data channel decoding with MAC PDU export to PCAP files
+- **Multi-UE Tracking**: simultaneous monitoring of multiple UEs
+- **FDD/TDD Support**: works with both frequency and time division duplexing
+
+### Supported Configurations
+
+- FR1 (sub-6 GHz) with 15 or 30 kHz subcarrier spacing
+- Downlink only (FDD and TDD)
+- Fallback DCI formats 0_0 (UL grants) and 1_0 (DL grants)
+- Aggregation levels 1, 2, 4, 8, 16; non-interleaved and interleaved CORESETs
+- RNTI types: SI-RNTI, RA-RNTI, C-RNTI
 
 ## 📊 Performance Results
 
@@ -39,15 +48,16 @@ Validated on **80+ real-world captures** from operational 5G networks (srsRAN, O
 
 ### Complexity Analysis
 
-**Traditional Exhaustive Search:**
+**Traditional Exhaustive Search** (per PDCCH candidate):
+- DM-RS scrambling IDs to test: up to 65,536 (16-bit space)
 - RNTIs to test: 65,536 (16-bit space)
-- DCI sizes to test: ~22 (per RNTI)
-- Total trials per CCE: **1,441,792**
+- DCI sizes to test: ~22
+- Every (RNTI, size) hypothesis requires a full polar decoding + CRC check
 
-**Golden Sniffer (DMRS-Guided):**
-- Phase analysis identifies ~50 candidate RNTIs
-- Only promising candidates decoded
-- Total trials per CCE: **~3,364** (~96% reduction)
+**Golden Sniffer (DM-RS-guided)** (per PDCCH candidate):
+- The DM-RS scrambling ID is read from the DM-RS phases (no search)
+- For each DCI size, one GF(2) linear solve checks the CRC consistency and returns the RNTI directly (no RNTI enumeration)
+- Only the ~22 DCI sizes are tried
 
 ## 📦 Requirements
 
@@ -64,26 +74,48 @@ Validated on **80+ real-world captures** from operational 5G networks (srsRAN, O
 
 ### Installation
 
+```bash
+git clone https://github.com/5G-GoldenSniffer/5G-GoldenSniffer
+```
+
 ```matlab
-% Clone the repository and add to MATLAB path
 cd 5G-GoldenSniffer
 ```
 
 ### Basic Usage
 
 ```matlab
-% Run GoldenSniffer with sample configuration from the examples/ folder
+% Run GoldenSniffer on the sample capture captures/iq_basic.sc16
 addpath('examples');
 example_basic
 ```
 
-### Using Artifact Evaluation Dataset
+### Using the Artifact Evaluation Dataset
+
+Download the dataset from https://doi.org/10.5281/zenodo.21678295 into the `captures/` folder, then:
 
 ```matlab
-% download the dataset from https://doi.org/10.5281/zenodo.21678295 into the captures/ folder
 addpath('examples')
-example_iq(id) % with id = 1:25 
+example_iq(id)       % id = 1:25 selects the gNB configuration
+```
 
+The dataset contains one capture per configuration (run 0). `example_iq(id, run)`, with `run` = 0:2
+(default 0), selects further captures of the same configuration, when available.
+
+`example_iq` dispatches to `example_iq_fdd` (ids 1–10, 19–22, 24, 25: 1980 MHz, files
+`iq_1980M_23.04M_conf<id>_<run>.sc16`) or `example_iq_tdd` (ids 11–18, 23: 3820.02 MHz, files
+`iq_3820.02M_23.04M_conf<id>_<run>.sc16`), which can also be called directly. The UE RNTIs are not given
+to the sniffer (`config.KNOWN_UE_RNTIs = []`): they are discovered blindly.
+
+### Ground Truth from the gNB Logs
+
+`examples/dci_count.py` counts the DCIs of the selected RNTIs in a srsRAN gNB log over an SFN window, to be
+compared with the sniffer's final report; `examples/dci_count_all` runs it for every configuration, with
+the windows matching the captures:
+
+```bash
+cd examples
+./dci_count.py -l ../captures/gnb_conf3.log --sfnini 934 --sfnfin 907 -r rnti=0x4601
 ```
 
 ## 📡 Supported Input Formats
@@ -109,13 +141,15 @@ uhd_rx_cfile -f 1970e6 -r 15.36e6 --type=float32 capture.fc32
 
 ### Main Parameters
 
-GoldenSniffer needs a struct `config` argument with the following fields:
+`GoldenSniffer(config)` takes a struct `config` with the following fields (see also `help GoldenSniffer`).
+The examples build it from `examples/config_init.m`, `examples/config_add_impairments.m` and
+`examples/config_output_params.m`, which set the defaults.
 
 ```matlab
-  config.dir = 'captures'
+  config.dir = 'captures';
   config.filename = 'capture.{fc32,sc16}';
       will open the raw I/Q sample capture file config.filename in the folder
-      config.dir; interleaved complex float32 (fc32) or int16 (sc16) formats 
+      config.dir; interleaved complex float32 (fc32) or int16 (sc16) formats
       are supported
 
   config.carrier_frequency_MHz = 1980;
@@ -132,54 +166,97 @@ GoldenSniffer needs a struct `config` argument with the following fields:
       specify the parameters of the noCDM NZP-CSI-RS (density 3 and
       density 1) and ZP-CSI-RS (4RE x 1symbol), whose knowledge is
       necessary for successful PDSCH decoding of slots containing the
-      CSI-RS
-      if the _known variables are set to false and the
+      CSI-RS (fields CSI1, CSI2 and CSI0, see examples/example_basic.m)
+      if the _known variables are set to false and
       search_unknown_nzpCSI is true, the execution will pause when a
       valid configuration is found, so that the config variable can be
       updated for faster future runs
+
+  config.PDSCH_decoding = true;
+      if enabled, per-RNTI BWP detection, PDSCH format autodetection and
+      DL-SCH decoding are attempted; successfully decoded allocations are
+      saved to results/capture_<filename>.pcap
+
+  config.KNOWN_UE_RNTIs = [];
+      a list of RNTIs known to be present in the capture file;
+      if empty, they are autodetected
+
+  config.enable_NLOS_channel = false;
+  config.SNR_reduction_dB = 0;
+      artificially add a multipath channel (CDL/TDL models) and/or a
+      signal-to-noise ratio degradation to the capture file (the phase
+      recovery method GoldenSniffer is based on requires good channel
+      conditions); see examples/config_add_impairments.m for the options
+
+  config.VERBOSITY = 0-4;
+      command line output
+        0: none
+        1: state machine and short per-frame summary
+        2: DCI candidates found and detailed per-frame summary
+        3: processed DCI details
+        4: PDSCH byte dump
+
+  config.TDD_pattern = [0 0 0 0 0 0 1 1 1 1];   % all zeros for FDD
+  config.TA = 360;
+      TDD_pattern specifies which slots are downlink (0) or uplink (1),
+      depending on the gNB configuration; TA is the Timing Advance (in
+      samples) used to show the PUSCH and PUCCH correctly in the figures
+      (the uplink is not processed), dependent on the system geometry
 ```
 
 ### Visualization
 
 The configuration field `FIGURES` contains a bitmap:
 
-1. `0x0001`: time-frequency map for PSS acquisition
-2. `0x0002`: cyclic prefix autocorrelation (to check PSS time alignment)
-3. `0x0004`: features of the Timing Error Detector
-4. `0x0008`: SS-block based channel estimates (to check frequency alignment)
-5. `0x0010`: CFO and timing error log wrt Frame-number
-6. `0x0020`: PBCH-based channel estimates
+1. `0x0001`: [ACQUISITION] time-domain PSS correlation (for every GSCN frequency)
+2. `0x0002`: [ACQUISITION] autocorrelation of the CP at the PSS correlation peak (to check the PSS time alignment)
+3. `0x0004`: [TRACKING] helpers for the timing error estimation
+4. `0x0008`: [TRACKING] PSS/SSS-based channel estimates (to check the frequency alignment)
+5. `0x0010`: [TRACKING] CFO and timing error log over the frames
+6. `0x0020`: [SYNC CHECK] PBCH-based channel estimates
 7. `0x0040`: synchronized frame, with a green highlight on the successfully decoded channels
 8. `0x0080`: NZP-CSI-RS based channel estimation
-9. `0x0100`: features of the power clustering used for blind PDCCH detection
+9. `0x0100`: power clustering used for blind PDCCH detection
 10. `0x0200`: PDCCH equalized constellations (QPSK)
 11. `0x0400`: PDSCH equalized constellations (QPSK/16-QAM/64-QAM)
+
+## 📁 Repository Layout
+
+| Path | Content |
+|------|---------|
+| `GoldenSniffer.m` | main function: acquisition, tracking, PDCCH blind search, PDSCH decoding, report |
+| `lib/` | signal processing functions (SSB search, DM-RS processing, DCI codec over GF(2), PDSCH decoding, CSI-RS) |
+| `lib/MathWorks/` | helpers derived from the MathWorks 5G Toolbox examples (MIB, CORESET#0, SIB1) |
+| `examples/` | example scripts, configuration defaults and the gNB log DCI counter |
+| `utils/` | NLOS channel model and plotting helpers |
+| `captures/` | I/Q captures (`iq_basic.sc16` included; put the dataset here) |
+| `results/` | PCAP output |
+| `docs/` | figures |
 
 ## 📖 Technical Details
 
 ### Gold Sequence Exploitation in 5G NR
 
-The breakthrough of Golden Sniffer lies in exploiting the **deterministic properties of Gold sequences** used in 5G NR DMRS:
+Golden Sniffer exploits the **deterministic structure of the Gold sequences** used by the 5G NR DM-RS.
 
-#### DMRS Scrambling Initialization
+#### PDCCH DM-RS Scrambling Initialization (TS 38.211 §7.4.1.3.1)
 ```
 c_init = (2^17 · (N_symb · n_slot + l + 1) · (2 · N_ID + 1) + 2 · N_ID) mod 2^31
 ```
 
-For PDCCH DMRS:
-- **N_ID** (16 bits): The scrambling ID occupies the lowest 17 bits (with the last one set to 0) of c_init
-- This creates a deterministic phase relationship observable in DMRS symbols
+- The first term is a multiple of 2^17, so the **lowest 17 bits of c_init are 2·N_ID**: the 16-bit scrambling ID N_ID, followed by a 0
+- The upper bits combine the known slot and symbol index with N_ID, which gives a consistency check on the recovered value
+- c_init is a linear function (over GF(2)) of the first 31 bits of the Gold sequence, so it can be recovered from a short run of known DM-RS bits
 
 #### Phase Unwrapping Technique
 
-Golden Sniffer uses **QPSK phase unwrapping** on DMRS symbols to extract candidate RNTIs:
+1. **DM-RS Extraction**: take the DM-RS resource elements of a PDCCH candidate (every 4th subcarrier)
+2. **Phase Analysis**: unwrap the QPSK phases (`unwrap_QPSK.m`) to obtain the scrambling sequence bits up to a common phase ambiguity
+3. **c_init Recovery**: invert the Gold sequence generator to get c_init (`DMRS_process.m`); short candidates use the underdetermined solver, which enumerates all the c_init solutions consistent with the DM-RS structure (`PDCCH_DMRS_solve_underdet`)
+4. **Scrambling ID**: N_ID is read from the lowest bits of c_init and checked against the slot/symbol index (`c_init_PDCCH_DMRS_decode.m`)
+5. **DCI Decoding**: with the scrambling removed, the polar code and the CRC are a linear system over GF(2): for each DCI size, its consistency validates the candidate and its solution gives the RNTI from the CRC mask (`DCIdecode_try.m`, `make_GErnti_matrices.m`)
 
-1. **DMRS Extraction**: Extract DMRS resource elements from PDCCH candidates
-2. **Phase Analysis**: Compute phase differences correlated with RNTI bits
-3. **RNTI Candidates**: Generate short-list of ~50 candidate RNTIs (vs. 65,536)
-4. **Verification**: Only decode DCI for promising candidates
-
-This reduces computational complexity from **O(65,536 × 22)** to **O(50 × 22)** per CCE.
+The search space thus shrinks from **65,536 scrambling IDs × 65,536 RNTIs × ~22 DCI sizes** to **~22 linear solves** per candidate.
 
 ### Sniffer Architecture
 
@@ -191,70 +268,77 @@ This reduces computational complexity from **O(65,536 × 22)** to **O(50 × 22)*
          │
          ▼
 ┌─────────────────────────────────────┐
-│  STEP 1: Synchronization            │
-│  • PSS/SSS detection                │
-│  • SSB blind search (GSCN grid)     │
-│  • MIB decoding → System BW, SCS    │
-│  • SIB1 decoding → CORESET config   │
+│  STEP 1: Acquisition & Tracking     │
+│  • SSB blind search (GSCN raster)   │
+│  • PSS/SSS → cell ID, timing, CFO   │
+│  • CFO/timing tracking loops        │
+│  • PBCH/MIB → SFN, CORESET#0        │
 └────────┬────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────┐
-│  STEP 2: BWP Discovery              │
-│  • Search space monitoring          │
-│  • CORESET resource mapping         │
-│  • Aggregation level detection      │
+│  STEP 2: OFDM demodulation (FFT)    │
 └────────┬────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────┐
-│  STEP 3: PDCCH Blind Decoding       │
-│  • Energy detection (candidates)    │
-│  • DMRS phase unwrap → NID filter   │ ◄── GOLD SEQUENCE EXPLOIT
-│  • Polar decoding (reduced trials)  │
+│  STEP 3: PDCCH Blind Detection      │
+│  • Power clustering of busy REGs    │
+│  • Candidate enumeration (AL,       │
+│    non-interleaved / interleaved)   │
+│  • DM-RS phase unwrap → N_ID        │ ◄── GOLD SEQUENCE EXPLOIT
+│  • GF(2) inversion → RNTI, DCI size │
 │    + CRC-24C verification           │
 └────────┬────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────────┐
-│  STEP 4: PDSCH Decoding             │
-│  • Resource allocation from DCI     │
-│  • Channel estimation (DMRS)        │
-│  • LDPC decoding                    │
-│  • TB CRC verification              │
-│  • MAC PDU extraction → PCAP        │
+│  STEP 4: CSI-RS & PDSCH Decoding    │
+│  • NZP-/ZP-CSI-RS detection         │
+│  • DCI parsing (SI/RA/C-RNTI)       │
+│  • Per-RNTI BWP hypotheses (FDA)    │
+│  • PDSCH DM-RS & symbol allocation  │
+│    autodetection                    │
+│  • LDPC decoding, TB CRC            │
+│  • MAC PDU export → PCAP            │
 └─────────────────────────────────────┘
 ```
 
+SIB1 is decoded in STEP 4 like any other PDSCH, from the DCI 1_0 with SI-RNTI found in CORESET#0.
+
 ### 5G NR Standards Compliance
 
-Golden Sniffer implements algorithms based on 3GPP specifications:
+Golden Sniffer implements algorithms based on the 3GPP specifications:
 
-- **TS 38.211**: Physical channels and modulation (DMRS, PDCCH, PDSCH)
-- **TS 38.212**: Channel coding (Polar codes for DCI, LDPC for data)
+- **TS 38.211**: Physical channels and modulation (DM-RS, PDCCH, PDSCH)
+- **TS 38.212**: Channel coding (polar codes for DCI, LDPC for data)
 - **TS 38.213**: Control procedures (CORESET, search space, DCI formats)
 - **TS 38.214**: Data procedures (resource allocation, MCS tables)
 - **TS 38.331**: RRC protocol (MIB, SIB1 message formats)
 
 ### Supported DCI Formats
 
-Golden Sniffer currently supports the most common DCI formats:
+Golden Sniffer currently supports the fallback DCI formats:
 
 | Format | Direction | Description | Typical Use Case |
 |--------|-----------|-------------|------------------|
 | **DCI 0_0** | Uplink | PUSCH scheduling grant | UL data transmission |
 | **DCI 1_0** | Downlink | PDSCH scheduling grant | DL data transmission |
 
-Both formats support:
-- Frequency domain resource allocation (Type 0 and Type 1)
-- Time domain resource allocation  
+Both formats carry:
+- Frequency domain resource allocation (Type 1, RIV)
+- Time domain resource allocation
 - MCS and transport block size indication
-- HARQ process number tracking
-- NDI (New Data Indicator) for retransmissions
+- HARQ process number
+- NDI (New Data Indicator) and redundancy version for retransmissions
 
 ## 📈 Output Examples
 
 ### Console Output
+
+At the end of a run, Golden Sniffer prints the processing time of each step and, for every RNTI, the DCI 1_0
+whose PDSCH was decoded with CRC pass/fail, the HARQ retransmissions (RV≠0, not decoded) and the DCIs whose
+format could not be confirmed (illustrative values):
 
 ```
 ========== GOLDEN SNIFFER TIMING ANALYSIS ===============
@@ -270,26 +354,29 @@ SFN range: 808:906
                      RNTI: 0x4601 0xffff
   Format1_0 with CRC pass:    990      6
   Format1_0 with CRC fail:      0      0
+  Format1_0 HARQ RV!=0   :      0      0
   FormatX_X (unconfirmed):    112      0
+
+PBCH SNR: 25 dB
 ```
 
 ### PCAP Output
 
-Decoded MAC PDUs are exported to **PCAP format** for analysis with Wireshark:
+Decoded MAC PDUs are exported to **PCAP format** (`results/capture_<filename>.pcap`) for analysis with Wireshark:
 
-- **MAC-NR** layer dissection  
+- **MAC-NR** layer dissection
 - Transport block visualization
 - RLC/PDCP layer analysis (if unencrypted)
 - Compatible with standard Wireshark 5G NR dissectors
 
 #### Example: Controlled Testbed ICMP Packet Recovery
 
-The figure below shows an ICMP Echo Reply packet (highlighted in Wireshark) successfully recovered by Golden Sniffer from PDSCH transmissions in a controlled testbed environment with encryption disabled. This demonstrates the sniffer's capability to decode data channel transmissions and extract higher-layer protocol information when encryption is not enabled.
+The figure below shows an ICMP Echo Reply packet (highlighted in Wireshark) recovered by Golden Sniffer from PDSCH transmissions in a controlled testbed environment with encryption disabled. This demonstrates the sniffer's capability to decode data channel transmissions and extract higher-layer protocol information when encryption is not enabled.
 
 ![ICMP Echo Reply Packet Recovery](docs/wireshark_icmp_recovery.png)
 
-**Figure: ICMP Echo Reply packet recovered from PDSCH**  
-The Wireshark capture shows the decoded MAC-NR layer with the ICMP Echo Reply packet visible in the packet details pane. This validates Golden Sniffer's end-to-end decoding pipeline from physical layer (PDSCH) to application layer protocols.
+**Figure: ICMP Echo Reply packet recovered from PDSCH**
+The Wireshark capture shows the decoded MAC-NR layer with the ICMP Echo Reply packet visible in the packet details pane. This validates Golden Sniffer's end-to-end decoding pipeline from the physical layer (PDSCH) to application layer protocols.
 
 **Testbed Configuration:**
 - Environment: Controlled 5G NR testbed
@@ -302,7 +389,7 @@ The Wireshark capture shows the decoded MAC-NR layer with the ICMP Echo Reply pa
 
 ### Test Environment
 
-Golden Sniffer has been extensively validated with:
+Golden Sniffer has been validated with:
 
 **Software-Defined Radio Networks:**
 - **srsRAN 4G/5G** (open-source RAN implementation)
@@ -324,11 +411,11 @@ Golden Sniffer has been extensively validated with:
 ### Supported Scenarios
 
 ✅ **Single UE**
-✅ **Multi UE**  
+✅ **Multi UE**
 ✅ **Network Slicing** (multiple BWPs)
 ✅ **Different bandwidths** (5, 10, 20, 50, 100 MHz)
-✅ **Non-interleaved and interleaved DCI's**
-❌ **Encrypted traffic** (MAC layer decoding only)
+✅ **Non-interleaved and interleaved DCIs**
+❌ **Encrypted traffic** (PDSCH payloads are decoded, but encrypted user data can't be read)
 
 ## 🎓 Research Applications
 
@@ -339,7 +426,7 @@ Golden Sniffer enables various research domains:
 - Analysis of 5G security mechanisms
 - Radio resource allocation fairness studies
 
-### QoS & RRM Analysis  
+### QoS & RRM Analysis
 - Resource block allocation monitoring
 - Scheduler behavior analysis
 - Network slicing resource distribution
@@ -359,7 +446,7 @@ Golden Sniffer enables various research domains:
 
 Contributions are welcome! We encourage:
 
-- **Algorithm improvements** (e.g., support for Non-Fallback DCI formats 0_1, 1_1)
+- **Algorithm improvements** (e.g., support for non-fallback DCI formats 0_1, 1_1)
 - **New channel models** and propagation scenarios
 - **Performance optimizations** for real-time processing
 - **Documentation** and tutorial improvements
@@ -367,8 +454,8 @@ Contributions are welcome! We encourage:
 ### Development Setup
 
 1. Clone the repository
-2. Add the samples scripts forlder to the search path `addpath('examples/')`
-3. Validate installation: Run `example_basic.m`
+2. Add the example scripts folder to the search path: `addpath('examples/')`
+3. Validate the installation: run `example_basic`
 4. Contribute!
 
 ## 📚 Citation
@@ -393,10 +480,10 @@ If you use Golden Sniffer in your research, please cite our work:
 ## 📄 License
 
 ### Project Code
-The original Golden Sniffer code and algorithms are released under the MIT License. See [LICENSE](LICENSE) file for details.
+The original Golden Sniffer code and algorithms are released under the MIT License (Copyright 2024-2026 the authors). See the [LICENSE](LICENSE) file for details.
 
 ### MathWorks-Derived Code
-Several functions in the `lib/` directory are derived from or based on MathWorks MATLAB 5G Toolbox examples and retain their original MathWorks copyright.
+Several functions in the `lib/MathWorks/` directory are derived from or based on MathWorks MATLAB 5G Toolbox examples and retain their original MathWorks copyright.
 
 ### Requirements
 - Valid MATLAB license (R2023a or later)
