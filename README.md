@@ -7,7 +7,7 @@
 
 **Golden Sniffer** is a low-complexity passive 5G NR sniffer that exploits the deterministic structure of the **Gold sequences** used by the DM-RS (Demodulation Reference Signals) to blindly detect and decode the downlink control and data channels. Instead of an exhaustive search over RNTIs, it reads the DM-RS scrambling ID directly from the phases of the PDCCH DM-RS, and recovers the RNTI and the DCI size by linear algebra over GF(2), achieving a >94% DCI detection rate.
 
-**NEW** multi-thread C++ implementation available
+**NEW** multi-thread C++ implementation available [5G-GoldenSniffer-cpp](https://github.com/5G-GoldenSniffer/5G-GoldenSniffer-cpp).
 
 ## 🔬 Research Contributions
 
