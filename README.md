@@ -3,9 +3,11 @@
 [![MATLAB](https://img.shields.io/badge/MATLAB-R2023a+-blue.svg)](https://www.mathworks.com/products/matlab.html)
 [![5G NR](https://img.shields.io/badge/5G-NR-orange.svg)](https://www.3gpp.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![C++](https://img.shields.io/badge/c++-%2300599C.svg)](https://github.com/5G-GoldenSniffer/5G-GoldenSniffer-cpp)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-%2300599C.svg)](https://github.com/5G-GoldenSniffer/5G-GoldenSniffer-cpp)
 
 **Golden Sniffer** is a low-complexity passive 5G NR sniffer that exploits the deterministic structure of the **Gold sequences** used by the DM-RS (Demodulation Reference Signals) to blindly detect and decode the downlink control and data channels. Instead of an exhaustive search over RNTIs, it reads the DM-RS scrambling ID directly from the phases of the PDCCH DM-RS, and recovers the RNTI and the DCI size by linear algebra over GF(2), achieving a >94% DCI detection rate.
+
+**NEW** multi-thread C++ implementation available
 
 ## 🔬 Research Contributions
 
